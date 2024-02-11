@@ -1,0 +1,18 @@
+openapi: 3.0.3
+info:
+  title: X backend
+  description: >-
+    Twetter backend with some more advanced features like anonymous posting
+
+    ## 🏁 Installation
+
+    Follow [these](https://github.com/pratyushsingha/xBackend-#installation) instructions for the installation and project setup.
+
+    ## 🐞 Reporting issues
+
+    If you find API issues or bugs when testing, please create an [issue](https://github.com/pratyushsingha/xBackend/issues/new)
+  version: 1.0.0
+  contact: {}
+servers:
+  - url: "http://localhost:8080/api/v1"
+paths:
