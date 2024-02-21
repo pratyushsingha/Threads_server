@@ -1,10 +1,8 @@
-import mongoose from "mongoose";
 import { User } from "../../models/user.model.js";
 import { APiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
-import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -59,7 +57,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const avatar = await cloudinaryUpload(avatarLocalPath);
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
-
+  console.log(avatar);
   const user = await User.create({
     fullName,
     username,
@@ -259,14 +257,14 @@ const updateUserDetails = asyncHandler(async (req, res) => {
 
 const userProfile = asyncHandler(async (req, res) => {
   const { username } = req.params;
-  if (!username) {
+  if (!username.trim()) {
     throw new APiError(400, "username is Misssing");
   }
 
   const profileDetails = await User.aggregate([
     {
       $match: {
-        username,
+        username: username?.toLowerCase(),
       },
     },
     {
@@ -278,12 +276,41 @@ const userProfile = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "follows",
+        localField: "_id",
+        foreignField: "followedBy",
+        as: "followers",
+      },
+    },
+    {
+      $lookup: {
+        from: "follows",
+        localField: "_id",
+        foreignField: "followerId",
+        as: "following",
+      },
+    },
+    {
       $addFields: {
         publicTweets: {
           $filter: {
             input: "$allTweets",
             as: "tweet",
             cond: { $eq: ["$$tweet.isAnonymous", false] },
+          },
+        },
+        followersCount: {
+          $size: "$followers",
+        },
+        followingCount: {
+          $size: "$following",
+        },
+        isFollowing: {
+          $cond: {
+            if: { $in: [req.user?._id, "$followers.followerId"] },
+            then: true,
+            else: false,
           },
         },
       },
@@ -297,6 +324,9 @@ const userProfile = asyncHandler(async (req, res) => {
         coverImage: 1,
         avatar: 1,
         publicTweets: 1,
+        followersCount: 1,
+        followingCount: 1,
+        isFollowing: 1,
       },
     },
   ]);
@@ -322,6 +352,14 @@ const myProfileDetails = asyncHandler(async (req, res) => {
         localField: "_id",
         foreignField: "owner",
         as: "allTweets",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "bookmarkedBy",
+        as: "bookmarkedTweets",
       },
     },
     {

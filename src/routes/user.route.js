@@ -38,7 +38,7 @@ router
   .patch(verifyJWT, upload.single("coverImage"), updateCoverImage);
 router.route("/change-password").patch(verifyJWT, changePassword);
 router.route("/profile").patch(verifyJWT, updateUserDetails);
-router.route("/profile/u/:username").get(userProfile);
+router.route("/profile/u/:username").get(verifyJWT,userProfile);
 router.route("/profile/my").get(verifyJWT,myProfileDetails);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 export default router;

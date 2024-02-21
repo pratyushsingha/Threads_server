@@ -1,12 +1,12 @@
 import mongoose, { Schema } from "mongoose";
 
-const followSchema = new Schema(
+const bookmarkSchema = new Schema(
   {
-    followerId: {
+    tweetId: {
       type: Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Tweet",
     },
-    followedBy: {
+    bookmarkedBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
     },
@@ -14,4 +14,4 @@ const followSchema = new Schema(
   { timestamps: true }
 );
 
-export const Follow = mongoose.model("Follow", followSchema);
+export const Bookmark = mongoose.model("Bookmark", bookmarkSchema);
