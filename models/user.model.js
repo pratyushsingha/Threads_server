@@ -41,6 +41,9 @@ const userSchema = new Schema(
     tags: {
       type: [],
     },
+    bio: {
+      type: String,
+    },
     refreshToken: {
       type: String,
     },

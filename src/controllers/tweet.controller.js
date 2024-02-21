@@ -1,8 +1,10 @@
+import mongoose, { Mongoose, isValidObjectId } from "mongoose";
 import { APiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Tweet } from "../../models/tweet.model.js";
 import { User } from "../../models/user.model.js";
+import { getMongoosePaginationOptions } from "../utils/helper.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   const { content, isAnonymous } = req.body;
@@ -83,16 +85,11 @@ const deleteTweet = asyncHandler(async (req, res) => {
 });
 
 const getAllTweets = asyncHandler(async (req, res) => {
-  const { username } = req.params;
-  if (!username) {
-    throw new APiError(400, "username is Misssing");
-  }
-
   const userTweets = await User.aggregate([
     [
       {
         $match: {
-          username,
+          _id: new mongoose.Types.ObjectId(req.user?._id),
         },
       },
       {
@@ -111,9 +108,110 @@ const getAllTweets = asyncHandler(async (req, res) => {
     ],
   ]);
 
+  if (!userTweets)
+    throw new APiError(500, "something went wrong while fetching ur tweets");
+  
   return res
     .status(200)
     .json(new ApiResponse(201, userTweets, "tweets fetched successfully"));
 });
 
-export { createTweet, updateTweet, deleteTweet, getAllTweets };
+const toggleIsAnonymous = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  if (!tweetId) throw new APiError(422, "tweetId is required");
+
+  if (!isValidObjectId(tweetId)) throw new APiError(409, "invalid tweetId");
+
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) throw new APiError(409, "tweet doesn't exist");
+
+  if (!(tweet.owner.toString() === req.user?._id.toString()))
+    throw new APiError(409, "unAuthorized request");
+  let toggleStatus;
+  if (tweet.isAnonymous === true) {
+    toggleStatus = await Tweet.findByIdAndUpdate(
+      tweetId,
+      {
+        $set: {
+          isAnonymous: false,
+        },
+      },
+      { new: true }
+    );
+    if (!toggleStatus)
+      throw new APiError(500, "something went wrong while updating the status");
+
+    return res.status(200).json(
+      new ApiResponse(
+        201,
+        {
+          isAnonymous: false,
+        },
+        "tweet set to public"
+      )
+    );
+  }
+
+  toggleStatus = await Tweet.findByIdAndUpdate(
+    tweetId,
+    {
+      $set: {
+        isAnonymous: true,
+      },
+    },
+    { new: true }
+  );
+
+  if (!toggleStatus)
+    throw new APiError(500, "something went wrong while updating the status");
+
+  return res.status(200).json(
+    new ApiResponse(
+      201,
+      {
+        isAnonymous: true,
+      },
+      "tweet set to private"
+    )
+  );
+});
+
+const feedTweets = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20 } = req.query;
+
+  const tweetAggregate = Tweet.aggregate([
+    {
+      $match: {
+        isAnonymous: false,
+      },
+    },
+  ]);
+
+  const tweets = await Tweet.aggregatePaginate(
+    tweetAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalTweets",
+        docs: "tweets",
+      },
+    })
+  );
+
+  if (!tweets)
+    throw new APiError(500, "something went wrong while fetching the feed");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweets, "tweets fetched successfully"));
+});
+
+export {
+  createTweet,
+  updateTweet,
+  deleteTweet,
+  getAllTweets,
+  toggleIsAnonymous,
+  feedTweets,
+};
