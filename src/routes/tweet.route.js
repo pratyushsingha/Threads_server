@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { upload } from "../middlewares/multer.middleware.js";
+
 import {
   createTweet,
   deleteTweet,
@@ -9,10 +11,20 @@ import {
   updateTweet,
 } from "../controllers/tweet.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { MAXIMUM_TWEET_IMAGE_COUNT } from "../../constants.js";
 
 const router = Router();
 
-router.route("/").post(verifyJWT, createTweet);
+router.route("/").post(
+  verifyJWT,
+  upload.fields([
+    {
+      name: "images",
+      maxCount: MAXIMUM_TWEET_IMAGE_COUNT,
+    },
+  ]),
+  createTweet
+);
 router
   .route("/:tweetId")
   .get(verifyJWT, getTweetById)

@@ -5,15 +5,34 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Tweet } from "../../models/tweet.model.js";
 import { User } from "../../models/user.model.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
+import { cloudinaryUpload } from "../utils/cloudinary.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   const { content, isAnonymous } = req.body;
   if (!content) {
     throw new APiError(400, "tweet can't be empty");
   }
-  //   console.log(req.user);
+  let imagesLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.images) &&
+    req.files.images.length > 0
+  ) {
+    imagesLocalPath = req.files.images.map((file) => file.path);
+  }
+  // console.log(imagesLocalPath);
+
+  let uploadImages = [];
+  if (imagesLocalPath && imagesLocalPath.length > 0) {
+    for (let path of imagesLocalPath) {
+      const uploadedImage = await cloudinaryUpload(path);
+      uploadImages.push(uploadedImage.url);
+    }
+  }
+
   const tweet = await Tweet.create({
     content,
+    images: uploadImages,
     isAnonymous,
     owner: req.user._id,
   });
