@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const bookmarkSchema = new Schema(
   {
@@ -13,5 +14,7 @@ const bookmarkSchema = new Schema(
   },
   { timestamps: true }
 );
+
+bookmarkSchema.plugin(mongooseAggregatePaginate);
 
 export const Bookmark = mongoose.model("Bookmark", bookmarkSchema);

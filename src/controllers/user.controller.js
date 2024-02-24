@@ -293,13 +293,13 @@ const userProfile = asyncHandler(async (req, res) => {
     },
     {
       $addFields: {
-        publicTweets: {
-          $filter: {
-            input: "$allTweets",
-            as: "tweet",
-            cond: { $eq: ["$$tweet.isAnonymous", false] },
-          },
-        },
+        // publicTweets: {
+        //   $filter: {
+        //     input: "$allTweets",
+        //     as: "tweet",
+        //     cond: { $eq: ["$$tweet.isAnonymous", false] },
+        //   },
+        // },
         followersCount: {
           $size: "$followers",
         },
@@ -323,7 +323,7 @@ const userProfile = asyncHandler(async (req, res) => {
         createdAt: 1,
         coverImage: 1,
         avatar: 1,
-        publicTweets: 1,
+        // publicTweets: 1,
         followersCount: 1,
         followingCount: 1,
         isFollowing: 1,

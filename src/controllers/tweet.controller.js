@@ -1,4 +1,4 @@
-import mongoose, { Mongoose, isValidObjectId } from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { APiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -84,33 +84,99 @@ const deleteTweet = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, "tweet deleted successfully"));
 });
 
-const getAllTweets = asyncHandler(async (req, res) => {
-  const userTweets = await User.aggregate([
-    [
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(req.user?._id),
+const myTweets = asyncHandler(async (req, res) => {
+  const userTweets = await Tweet.aggregate([
+    {
+      $match: {
+        owner: new mongoose.Types.ObjectId(req.user?._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        commentCount: {
+          $size: "$comments",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+        isBookmarked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
         },
       },
-      {
-        $lookup: {
-          from: "tweets",
-          localField: "_id",
-          foreignField: "owner",
-          as: "allTweets",
-        },
+    },
+    {
+      $project: {
+        likes: 0,
+        comments: 0,
+        bookmarks: 0,
       },
-      {
-        $project: {
-          allTweets: 1,
-        },
-      },
-    ],
+    },
   ]);
 
   if (!userTweets)
     throw new APiError(500, "something went wrong while fetching ur tweets");
-  
+
   return res
     .status(200)
     .json(new ApiResponse(201, userTweets, "tweets fetched successfully"));
@@ -181,8 +247,83 @@ const feedTweets = asyncHandler(async (req, res) => {
 
   const tweetAggregate = Tweet.aggregate([
     {
-      $match: {
-        isAnonymous: false,
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        commentCount: {
+          $size: "$comments",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+        isBookmarked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        likes: 0,
+        comments: 0,
+        bookmarks: 0,
       },
     },
   ]);
@@ -207,11 +348,27 @@ const feedTweets = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, tweets, "tweets fetched successfully"));
 });
 
+const getTweetById = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  if (!tweetId) throw new APiError(422, "tweetId is missing");
+
+  if (!isValidObjectId(tweetId)) throw new APiError(409, "tweetId is invalid");
+
+  const tweet = await Tweet.findById(tweetId);
+
+  if (!tweet) throw new APiError(409, "tweet doesn't exists");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweet, "tweet fetched successfully"));
+});
+
 export {
   createTweet,
   updateTweet,
   deleteTweet,
-  getAllTweets,
+  myTweets,
   toggleIsAnonymous,
   feedTweets,
+  getTweetById,
 };

@@ -96,6 +96,29 @@ const likedTweets = asyncHandler(async (req, res) => {
         localField: "tweetId",
         foreignField: "_id",
         as: "likedTweets",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "ownerDetails",
+              pipeline: [
+                {
+                  $project: {
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $unwind: {
+              path: "$ownerDetails",
+            },
+          },
+        ],
       },
     },
     {

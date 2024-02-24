@@ -5,6 +5,7 @@ import {
   commentOnComment,
   deleteComment,
   editComment,
+  tweetComments,
 } from "../controllers/comment.controller.js";
 
 const router = Router();
@@ -16,5 +17,7 @@ router
   .route("/comment/:commentId")
   .patch(verifyJWT, editComment)
   .delete(verifyJWT, deleteComment);
+
+router.route("/:tweetId").get(verifyJWT, tweetComments);
 
 export default router;
