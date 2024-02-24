@@ -1,8 +1,10 @@
+import mongoose, { isValidObjectId } from "mongoose";
 import { Comment } from "../../models/comment.model.js";
 import { Tweet } from "../../models/tweet.model.js";
 import { APiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { getMongoosePaginationOptions } from "../utils/helper.js";
 
 const CommentOnTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
@@ -95,4 +97,53 @@ const deleteComment = asyncHandler(async (req, res) => {
   return res.status(200).json(201, {}, "comment deleted successfully");
 });
 
-export { CommentOnTweet, commentOnComment, editComment, deleteComment };
+const tweetComments = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { page = 1, limit = 20 } = req.query;
+
+  if (!tweetId) throw new APiError(422, "tweetId is required");
+  if (!isValidObjectId(tweetId))
+    throw new APiError(422, "tweetId is not valid");
+
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) throw new APiError(409, "tweet doesn't exists");
+
+  const comments = await Comment.aggregate([
+    {
+      $match: {
+        tweetId: new mongoose.Types.ObjectId(tweetId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+  ]);
+
+  if (!comments)
+    throw new APiError(
+      500,
+      "something went wrong while fetching all the comments"
+    );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, comments, "comments fetched successfully"));
+});
+
+export {
+  CommentOnTweet,
+  commentOnComment,
+  editComment,
+  deleteComment,
+  tweetComments,
+};
