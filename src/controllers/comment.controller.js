@@ -120,11 +120,53 @@ const tweetComments = asyncHandler(async (req, res) => {
         localField: "owner",
         foreignField: "_id",
         as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "commentId",
+        as: "likes",
       },
     },
     {
       $unwind: {
         path: "$ownerDetails",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        content: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        ownerDetails: 1,
+        likeCount: 1,
+        isLiked: 1,
       },
     },
   ]);
@@ -140,10 +182,93 @@ const tweetComments = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, comments, "comments fetched successfully"));
 });
 
+const commentsOnComment = asyncHandler(async (req, res) => {
+  const { commentId } = req.params;
+
+  if (!commentId) throw new APiError(422, "commentId is required");
+  if (!isValidObjectId(commentId))
+    throw new APiError(422, "commentId is not valid");
+
+  const comment = await Comment.findById(commentId);
+  if (!comment) throw new APiError(409, "comment doesn't exists");
+
+  const comments = await Comment.aggregate([
+    {
+      $match: {
+        commentId: new mongoose.Types.ObjectId(commentId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "commentId",
+        as: "likes",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+
+    {
+      $project: {
+        content: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        ownerDetails: 1,
+        likeCount: 1,
+        isLiked: 1,
+      },
+    },
+  ]);
+
+  if (!comments)
+    throw new APiError(500, "something went wrong while fetching the replies");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, comments, "replies fetched successfully"));
+});
+
 export {
   CommentOnTweet,
   commentOnComment,
   editComment,
   deleteComment,
   tweetComments,
+  commentsOnComment,
 };
