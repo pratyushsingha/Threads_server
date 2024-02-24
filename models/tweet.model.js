@@ -6,6 +6,11 @@ const tweetSchema = new Schema(
     content: {
       type: String,
       required: true,
+      index: true,
+    },
+    images: {
+      type: [String],
+      default: [],
     },
     isAnonymous: {
       type: Boolean,
