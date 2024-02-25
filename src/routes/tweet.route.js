@@ -7,6 +7,7 @@ import {
   feedTweets,
   getTweetById,
   myTweets,
+  publicTweets,
   toggleIsAnonymous,
   updateTweet,
 } from "../controllers/tweet.controller.js";
@@ -25,12 +26,15 @@ router.route("/").post(
   ]),
   createTweet
 );
+
+router.route("/my").get(verifyJWT, myTweets);
+router.route("/:username").get(verifyJWT, publicTweets);
 router
   .route("/:tweetId")
-  .get(verifyJWT, getTweetById)
   .patch(verifyJWT, updateTweet)
-  .delete(verifyJWT, deleteTweet);
-router.route("/my").get(verifyJWT, myTweets);
+  .delete(verifyJWT, deleteTweet)
+  .get(verifyJWT, getTweetById);
+
 router.route("/tweetStatus/:tweetId").patch(verifyJWT, toggleIsAnonymous);
 router.route("/").get(verifyJWT, feedTweets);
 
