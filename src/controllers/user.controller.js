@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "../../models/user.model.js";
 import { APiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -293,13 +294,6 @@ const userProfile = asyncHandler(async (req, res) => {
     },
     {
       $addFields: {
-        // publicTweets: {
-        //   $filter: {
-        //     input: "$allTweets",
-        //     as: "tweet",
-        //     cond: { $eq: ["$$tweet.isAnonymous", false] },
-        //   },
-        // },
         followersCount: {
           $size: "$followers",
         },
@@ -323,7 +317,6 @@ const userProfile = asyncHandler(async (req, res) => {
         createdAt: 1,
         coverImage: 1,
         avatar: 1,
-        // publicTweets: 1,
         followersCount: 1,
         followingCount: 1,
         isFollowing: 1,
@@ -343,7 +336,7 @@ const myProfileDetails = asyncHandler(async (req, res) => {
   const profileDetails = await User.aggregate([
     {
       $match: {
-        _id: req.user?._id,
+        _id: new mongoose.Types.ObjectId(req.user?._id),
       },
     },
     {
@@ -356,10 +349,28 @@ const myProfileDetails = asyncHandler(async (req, res) => {
     },
     {
       $lookup: {
-        from: "bookmarks",
+        from: "follows",
         localField: "_id",
-        foreignField: "bookmarkedBy",
-        as: "bookmarkedTweets",
+        foreignField: "followedBy",
+        as: "followers",
+      },
+    },
+    {
+      $lookup: {
+        from: "follows",
+        localField: "_id",
+        foreignField: "followerId",
+        as: "following",
+      },
+    },
+    {
+      $addFields: {
+        followersCount: {
+          $size: "$followers",
+        },
+        followingCount: {
+          $size: "$following",
+        },
       },
     },
     {
@@ -370,7 +381,8 @@ const myProfileDetails = asyncHandler(async (req, res) => {
         createdAt: 1,
         coverImage: 1,
         avatar: 1,
-        allTweets: 1,
+        followersCount: 1,
+        followingCount: 1,
       },
     },
   ]);

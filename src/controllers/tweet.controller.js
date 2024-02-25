@@ -186,9 +186,16 @@ const myTweets = asyncHandler(async (req, res) => {
     },
     {
       $project: {
-        likes: 0,
-        comments: 0,
-        bookmarks: 0,
+        content: 1,
+        images: 1,
+        isAnonymous: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        ownerDetails: 1,
+        likeCount: 1,
+        commentCount: 1,
+        isLiked: 1,
+        isBookmarked: 1,
       },
     },
   ]);
@@ -199,6 +206,107 @@ const myTweets = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(201, userTweets, "tweets fetched successfully"));
+});
+
+const publicTweets = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+  if (!username.trim()) throw new APiError(422, "username is required");
+
+  const tweets = await User.aggregate([
+    {
+      $match: {
+        username,
+      },
+    },
+    {
+      $lookup: {
+        from: "tweets",
+        localField: "_id",
+        foreignField: "owner",
+        as: "allTweets",
+        pipeline: [
+          {
+            $lookup: {
+              from: "likes",
+              localField: "_id",
+              foreignField: "tweet",
+              as: "likes",
+            },
+          },
+          {
+            $lookup: {
+              from: "comments",
+              localField: "_id",
+              foreignField: "tweet",
+              as: "comments",
+            },
+          },
+          {
+            $addFields: {
+              likeCount: {
+                $size: "$likes",
+              },
+              commentCount: {
+                $size: "$comments",
+              },
+              isLiked: {
+                $cond: {
+                  if: {
+                    $in: [req.user?._id, "$likes.likedBy"],
+                  },
+                  then: true,
+                  else: false,
+                },
+              },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              content: 1,
+              images: 1,
+              isAnonymous: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              likeCount: 1,
+              commentCount: 1,
+              isLiked: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        publicTweets: {
+          $filter: {
+            input: "$allTweets",
+            as: "tweets",
+            cond: {
+              $eq: ["$$tweets.isAnonymous", false],
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        username: 1,
+        avatar: 1,
+        publicTweets: 1,
+      },
+    },
+  ]);
+
+  if (!tweets)
+    throw new APiError(
+      500,
+      "something went wrong while fetching all the tweets"
+    );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweets, "public tweets fetched successfully"));
 });
 
 const toggleIsAnonymous = asyncHandler(async (req, res) => {
@@ -390,4 +498,5 @@ export {
   toggleIsAnonymous,
   feedTweets,
   getTweetById,
+  publicTweets,
 };
