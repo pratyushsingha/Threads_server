@@ -74,7 +74,7 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
   const bookmarkedTweets = await Bookmark.aggregate([
     {
       $match: {
-        bookmarkedBy: new mongoose.Types.ObjectId("65c5f0c0204bc21b5304eb6c"),
+        bookmarkedBy: new mongoose.Types.ObjectId(req.user?._id),
       },
     },
     {
@@ -154,7 +154,19 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if (!bookmarkedTweets) {
+  const tweets = await Bookmark.aggregatePaginate(
+    bookmarkedTweets,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "bookmarkedTweets",
+        docs: "tweets",
+      },
+    })
+  );
+
+  if (!bookmarkedTweetsAggregate) {
     throw new APiError(500, "something went wrong while fetching the tweets");
   }
   // console.log(bookmarkedTweet);
