@@ -23,7 +23,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 };
 
 const registerUser = asyncHandler(async (req, res) => {
-  const { fullName, email, username, password } = req.body;
+  const { fullName, email, username, password, tags } = req.body;
   if (
     [fullName, email, username, password].some((field) => field?.trim === "")
   ) {
@@ -56,6 +56,8 @@ const registerUser = asyncHandler(async (req, res) => {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
+  let tag = tags.split(" #");
+
   const avatar = await cloudinaryUpload(avatarLocalPath);
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
   console.log(avatar);
@@ -66,6 +68,7 @@ const registerUser = asyncHandler(async (req, res) => {
     password,
     avatar: avatar?.url || "",
     coverImage: coverImage?.url || "",
+    tags: tag,
   });
 
   const createdUser = await User.findById(user._id).select(
@@ -226,11 +229,20 @@ const changePassword = asyncHandler(async (req, res) => {
 });
 
 const updateUserDetails = asyncHandler(async (req, res) => {
-  const { username, email, fullName } = req.body;
+  const { username, email, fullName, portfolio, tags } = req.body;
 
   if (!username || !email || !fullName) {
     throw new APiError(400, "All fields are required");
   }
+  const usernameExists = await User.findOne({ username });
+  if (usernameExists)
+    throw new APiError(422, "an user with this username already exists");
+
+  const emailExists = await User.findOne({ email });
+  if (emailExists)
+    throw new APiError(422, "an user with this email already exists");
+
+  let tag = tags.split(" #");
 
   const updatedprofileDetails = await User.findByIdAndUpdate(
     req.user._id,
@@ -239,6 +251,8 @@ const updateUserDetails = asyncHandler(async (req, res) => {
         username,
         email,
         fullName,
+        tags: tag,
+        portfolio,
       },
     },
     {

@@ -39,10 +39,12 @@ const userSchema = new Schema(
       type: String,
     },
     tags: {
-      type: [],
+      type: [String],
+      default: [],
     },
-    bio: {
+    portfolio: {
       type: String,
+      default: "",
     },
     refreshToken: {
       type: String,

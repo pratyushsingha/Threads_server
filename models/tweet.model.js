@@ -12,6 +12,10 @@ const tweetSchema = new Schema(
       type: [String],
       default: [],
     },
+    tags: {
+      type: [String],
+      default: [],
+    },
     isAnonymous: {
       type: Boolean,
       default: false,
