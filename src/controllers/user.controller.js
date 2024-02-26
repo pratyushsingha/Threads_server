@@ -234,11 +234,11 @@ const updateUserDetails = asyncHandler(async (req, res) => {
   if (!username || !email || !fullName) {
     throw new APiError(400, "All fields are required");
   }
-  const usernameExists = await User.findOne({ username });
+  const usernameExists = await User.findOne({ username: { $eq: username } });
   if (usernameExists)
     throw new APiError(422, "an user with this username already exists");
 
-  const emailExists = await User.findOne({ email });
+  const emailExists = await User.findOne({ email: { $eq: email } });
   if (emailExists)
     throw new APiError(422, "an user with this email already exists");
 
