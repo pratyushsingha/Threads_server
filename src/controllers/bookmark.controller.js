@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { Bookmark } from "../../models/bookmark.model.js";
 import { Tweet } from "../../models/tweet.model.js";
-import { APiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../../models/user.model.js";
@@ -10,11 +10,11 @@ import { getMongoosePaginationOptions } from "../utils/helper.js";
 const bookmarkTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
 
-  if (!tweetId) throw new APiError(400, "tweetId is missing");
+  if (!tweetId) throw new ApiError(400, "tweetId is missing");
 
   const tweet = await Tweet.findById(tweetId);
 
-  if (!tweet) throw new APiError(422, "tweet doesn't exists");
+  if (!tweet) throw new ApiError(422, "tweet doesn't exists");
 
   const isAlreadyBookmarked = await Bookmark.findOne({
     tweetId,
@@ -28,7 +28,7 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
     });
 
     if (!bookmarkedTweet)
-      throw new APiError(
+      throw new ApiError(
         500,
         "something went wrong while bookmarking the tweet"
       );
@@ -51,7 +51,7 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
     });
 
     if (unBookmarkedTweet.deletedCount === 0)
-      throw new APiError(
+      throw new ApiError(
         500,
         "something went wrong while bookmarking the tweet"
       );
@@ -167,7 +167,7 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
   );
 
   if (!bookmarkedTweetsAggregate) {
-    throw new APiError(500, "something went wrong while fetching the tweets");
+    throw new ApiError(500, "something went wrong while fetching the tweets");
   }
   // console.log(bookmarkedTweet);
 

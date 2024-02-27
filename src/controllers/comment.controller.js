@@ -1,7 +1,7 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Comment } from "../../models/comment.model.js";
 import { Tweet } from "../../models/tweet.model.js";
-import { APiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
@@ -10,10 +10,10 @@ const CommentOnTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   const { content } = req.body;
 
-  if (!tweetId) throw new APiError(400, "tweet id is missing");
+  if (!tweetId) throw new ApiError(400, "tweet id is missing");
 
   const tweetExists = await Tweet.findById(tweetId);
-  if (!tweetExists) throw new APiError(400, "tweet doesn't exists");
+  if (!tweetExists) throw new ApiError(400, "tweet doesn't exists");
 
   const commentedTweet = await Comment.create({
     tweetId,
@@ -21,7 +21,7 @@ const CommentOnTweet = asyncHandler(async (req, res) => {
     owner: req.user?._id,
   });
   if (!commentedTweet)
-    throw new APiError(
+    throw new ApiError(
       500,
       "something went wrong while commenting on this tweet"
     );
@@ -33,17 +33,17 @@ const commentOnComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
 
-  if (!commentId) throw new APiError(400, "comment id is missing");
+  if (!commentId) throw new ApiError(400, "comment id is missing");
 
   const commentExists = await Comment.findById(commentId);
-  if (!commentExists) throw new APiError(400, "comment doesn't exists");
+  if (!commentExists) throw new ApiError(400, "comment doesn't exists");
 
   const commentedComment = await Comment.create({
     commentId,
     content,
     owner: req.user?._id,
   });
-  if (!commentedComment) throw new APiError(500, "unable to comment");
+  if (!commentedComment) throw new ApiError(500, "unable to comment");
 
   return res
     .status(200)
@@ -54,15 +54,15 @@ const editComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
 
-  if (!commentId) throw new APiError(400, "comment id is missing");
+  if (!commentId) throw new ApiError(400, "comment id is missing");
 
   const commentExists = await Comment.findById(commentId);
-  if (!commentExists) throw new APiError(400, "comment doesn't exists");
+  if (!commentExists) throw new ApiError(400, "comment doesn't exists");
 
   const verifyUser =
     commentExists.owner.toString() === req.user?._id.toString();
   verifyUser;
-  if (!verifyUser) throw new APiError(400, "unathorized edit");
+  if (!verifyUser) throw new ApiError(400, "unathorized edit");
 
   const updatedComment = await Comment.findByIdAndUpdate(
     commentId,
@@ -71,7 +71,7 @@ const editComment = asyncHandler(async (req, res) => {
   );
 
   if (!updatedComment)
-    throw new APiError(500, "something went wrong while updating the tweet");
+    throw new ApiError(500, "something went wrong while updating the tweet");
 
   return res
     .status(200)
@@ -81,18 +81,18 @@ const editComment = asyncHandler(async (req, res) => {
 const deleteComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
 
-  if (!commentId) throw new APiError(400, "comment id is missing");
+  if (!commentId) throw new ApiError(400, "comment id is missing");
 
   const commentExists = await Comment.findById(commentId);
-  if (!commentExists) throw new APiError(400, "comment doesn't exists");
+  if (!commentExists) throw new ApiError(400, "comment doesn't exists");
 
   const verifyUser =
     commentExists.owner.toString() === req.user?._id.toString();
   console.log(verifyUser);
-  if (!verifyUser) throw new APiError(400, "unathorized edit");
+  if (!verifyUser) throw new ApiError(400, "unathorized edit");
 
   const deletedComment = await Comment.findByIdAndDelete(commentId);
-  if (!deletedComment) throw new APiError(500, "unable to delete the comment");
+  if (!deletedComment) throw new ApiError(500, "unable to delete the comment");
 
   return res.status(200).json(201, {}, "comment deleted successfully");
 });
@@ -101,12 +101,12 @@ const tweetComments = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   const { page = 1, limit = 20 } = req.query;
 
-  if (!tweetId) throw new APiError(422, "tweetId is required");
+  if (!tweetId) throw new ApiError(422, "tweetId is required");
   if (!isValidObjectId(tweetId))
-    throw new APiError(422, "tweetId is not valid");
+    throw new ApiError(422, "tweetId is not valid");
 
   const tweet = await Tweet.findById(tweetId);
-  if (!tweet) throw new APiError(409, "tweet doesn't exists");
+  if (!tweet) throw new ApiError(409, "tweet doesn't exists");
 
   const comments = await Comment.aggregate([
     {
@@ -172,7 +172,7 @@ const tweetComments = asyncHandler(async (req, res) => {
   ]);
 
   if (!comments)
-    throw new APiError(
+    throw new ApiError(
       500,
       "something went wrong while fetching all the comments"
     );
@@ -185,12 +185,12 @@ const tweetComments = asyncHandler(async (req, res) => {
 const commentsOnComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
 
-  if (!commentId) throw new APiError(422, "commentId is required");
+  if (!commentId) throw new ApiError(422, "commentId is required");
   if (!isValidObjectId(commentId))
-    throw new APiError(422, "commentId is not valid");
+    throw new ApiError(422, "commentId is not valid");
 
   const comment = await Comment.findById(commentId);
-  if (!comment) throw new APiError(409, "comment doesn't exists");
+  if (!comment) throw new ApiError(409, "comment doesn't exists");
 
   const comments = await Comment.aggregate([
     {
@@ -257,7 +257,7 @@ const commentsOnComment = asyncHandler(async (req, res) => {
   ]);
 
   if (!comments)
-    throw new APiError(500, "something went wrong while fetching the replies");
+    throw new ApiError(500, "something went wrong while fetching the replies");
 
   return res
     .status(200)

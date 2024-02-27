@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Comment } from "../../models/comment.model.js";
 import { Like } from "../../models/like.model.js";
 import { Tweet } from "../../models/tweet.model.js";
-import { APiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -12,7 +12,7 @@ const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
     likedBy: req.user?._id,
   });
   if (dislikedTweet.deletedCount === 0)
-    throw new APiError(500, "unable to dislike the tweet");
+    throw new ApiError(500, "unable to dislike the tweet");
 
   return res
     .status(201)
@@ -21,11 +21,11 @@ const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  if (!tweetId) throw new APiError(400, "tweet id is missing");
+  if (!tweetId) throw new ApiError(400, "tweet id is missing");
 
   const tweetExists = await Tweet.findById(tweetId);
 
-  if (!tweetExists) throw new APiError(400, "tweet doesn't exists");
+  if (!tweetExists) throw new ApiError(400, "tweet doesn't exists");
   const isAlreadyLiked = await Like.findOne({
     tweetId,
     likedBy: req.user?._id,
@@ -36,7 +36,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
       tweetId,
       likedBy: req.user._id,
     });
-    if (!likedTweet) throw new APiError(500, "unable to like the tweet");
+    if (!likedTweet) throw new ApiError(500, "unable to like the tweet");
     return res
       .status(200)
       .json(new ApiResponse(201, "tweet liked successfully"));
@@ -52,7 +52,7 @@ const disLikeComment = asyncHandler(async (req, res, commentId) => {
     commentId,
     likedBy: req.user?._id,
   });
-  if (!dislikedComment) throw new APiError(500, "unable to dislike the tweet");
+  if (!dislikedComment) throw new ApiError(500, "unable to dislike the tweet");
 
   return res
     .status(201)
@@ -61,10 +61,10 @@ const disLikeComment = asyncHandler(async (req, res, commentId) => {
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
-  if (!commentId) throw new APiError(400, "comment id is required");
+  if (!commentId) throw new ApiError(400, "comment id is required");
   const comment = await Comment.findById(commentId);
 
-  if (!comment) throw new APiError(400, "comment doesn't exists");
+  if (!comment) throw new ApiError(400, "comment doesn't exists");
 
   const isAlreadyLiked = await Like.findOne({
     commentId,
@@ -75,7 +75,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
       commentId,
       likedBy: req.user?._id,
     });
-    if (!likedComment) throw new APiError(500, "unable to like the comment");
+    if (!likedComment) throw new ApiError(500, "unable to like the comment");
 
     return res.status(200).json(new ApiResponse(201, "liked successfully"));
   }
@@ -146,7 +146,7 @@ const likedTweets = asyncHandler(async (req, res) => {
   ]);
 
   if (!tweets)
-    throw new APiError(
+    throw new ApiError(
       500,
       "something went wrong while fetching the liked tweets"
     );

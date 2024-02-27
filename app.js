@@ -2,13 +2,14 @@ import express from "express";
 import cors from "cors";
 import requestIp from "request-ip";
 import cookieParser from "cookie-parser";
+import { rateLimit } from "express-rate-limit";
 
 const app = express();
 
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN,
-    Credentials: true,
+    credentials: true,
   })
 );
 app.use(requestIp.mw());
