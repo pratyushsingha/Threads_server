@@ -1,5 +1,5 @@
 import mongoose, { isValidObjectId } from "mongoose";
-import { APiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Tweet } from "../../models/tweet.model.js";
@@ -10,7 +10,7 @@ import { cloudinaryUpload } from "../utils/cloudinary.js";
 const createTweet = asyncHandler(async (req, res) => {
   const { content, isAnonymous } = req.body;
   if (!content) {
-    throw new APiError(400, "tweet can't be empty");
+    throw new ApiError(400, "tweet can't be empty");
   }
   let imagesLocalPath;
   if (
@@ -37,7 +37,7 @@ const createTweet = asyncHandler(async (req, res) => {
     owner: req.user._id,
   });
   if (!tweet) {
-    throw new APiError(500, "unable to create tweet");
+    throw new ApiError(500, "unable to create tweet");
   }
 
   return res
@@ -49,18 +49,18 @@ const updateTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   const { content } = req.body;
   if (!tweetId) {
-    throw new APiError(400, "tweetId is required");
+    throw new ApiError(400, "tweetId is required");
   }
 
   const existingTweet = await Tweet.findById(tweetId);
   if (!existingTweet) {
-    throw new APiError(400, "tweet doesn't exist");
+    throw new ApiError(400, "tweet doesn't exist");
   }
 
   const verifyUser =
     existingTweet.owner?._id.toString() === req.user?._id.toString();
   if (!verifyUser) {
-    throw new APiError(400, "unauthorized access");
+    throw new ApiError(400, "unauthorized access");
   }
 
   const updatedTweet = await Tweet.findByIdAndUpdate(
@@ -74,7 +74,7 @@ const updateTweet = asyncHandler(async (req, res) => {
   );
 
   if (!updatedTweet) {
-    throw new APiError(500, "unable to update the tweet");
+    throw new ApiError(500, "unable to update the tweet");
   }
   return res
     .status(200)
@@ -86,17 +86,17 @@ const deleteTweet = asyncHandler(async (req, res) => {
 
   const existingTweet = await Tweet.findById(tweetId);
   if (!existingTweet) {
-    throw new APiError(400, "tweet doesn't exist");
+    throw new ApiError(400, "tweet doesn't exist");
   }
 
   const verifyUser =
     existingTweet.owner?._id.toString() === req.user?._id.toString();
   if (!verifyUser) {
-    throw new APiError(400, "unauthorized access");
+    throw new ApiError(400, "unauthorized access");
   }
   const deletedTweet = await Tweet.findByIdAndDelete(tweetId);
   if (!deletedTweet) {
-    throw new APiError(500, "unable to delte the tweet");
+    throw new ApiError(500, "unable to delte the tweet");
   }
   return res
     .status(200)
@@ -201,7 +201,7 @@ const myTweets = asyncHandler(async (req, res) => {
   ]);
 
   if (!userTweets)
-    throw new APiError(500, "something went wrong while fetching ur tweets");
+    throw new ApiError(500, "something went wrong while fetching ur tweets");
 
   return res
     .status(200)
@@ -210,7 +210,7 @@ const myTweets = asyncHandler(async (req, res) => {
 
 const publicTweets = asyncHandler(async (req, res) => {
   const { username } = req.params;
-  if (!username.trim()) throw new APiError(422, "username is required");
+  if (!username.trim()) throw new ApiError(422, "username is required");
 
   const tweets = await User.aggregate([
     {
@@ -299,7 +299,7 @@ const publicTweets = asyncHandler(async (req, res) => {
   ]);
 
   if (!tweets)
-    throw new APiError(
+    throw new ApiError(
       500,
       "something went wrong while fetching all the tweets"
     );
@@ -311,15 +311,15 @@ const publicTweets = asyncHandler(async (req, res) => {
 
 const toggleIsAnonymous = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  if (!tweetId) throw new APiError(422, "tweetId is required");
+  if (!tweetId) throw new ApiError(422, "tweetId is required");
 
-  if (!isValidObjectId(tweetId)) throw new APiError(409, "invalid tweetId");
+  if (!isValidObjectId(tweetId)) throw new ApiError(409, "invalid tweetId");
 
   const tweet = await Tweet.findById(tweetId);
-  if (!tweet) throw new APiError(409, "tweet doesn't exist");
+  if (!tweet) throw new ApiError(409, "tweet doesn't exist");
 
   if (!(tweet.owner.toString() === req.user?._id.toString()))
-    throw new APiError(409, "unAuthorized request");
+    throw new ApiError(409, "unAuthorized request");
   let toggleStatus;
   if (tweet.isAnonymous === true) {
     toggleStatus = await Tweet.findByIdAndUpdate(
@@ -332,7 +332,7 @@ const toggleIsAnonymous = asyncHandler(async (req, res) => {
       { new: true }
     );
     if (!toggleStatus)
-      throw new APiError(500, "something went wrong while updating the status");
+      throw new ApiError(500, "something went wrong while updating the status");
 
     return res.status(200).json(
       new ApiResponse(
@@ -356,7 +356,7 @@ const toggleIsAnonymous = asyncHandler(async (req, res) => {
   );
 
   if (!toggleStatus)
-    throw new APiError(500, "something went wrong while updating the status");
+    throw new ApiError(500, "something went wrong while updating the status");
 
   return res.status(200).json(
     new ApiResponse(
@@ -468,7 +468,7 @@ const feedTweets = asyncHandler(async (req, res) => {
   );
 
   if (!tweets)
-    throw new APiError(500, "something went wrong while fetching the feed");
+    throw new ApiError(500, "something went wrong while fetching the feed");
 
   return res
     .status(200)
@@ -477,13 +477,13 @@ const feedTweets = asyncHandler(async (req, res) => {
 
 const getTweetById = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  if (!tweetId) throw new APiError(422, "tweetId is missing");
+  if (!tweetId) throw new ApiError(422, "tweetId is missing");
 
-  if (!isValidObjectId(tweetId)) throw new APiError(409, "tweetId is invalid");
+  if (!isValidObjectId(tweetId)) throw new ApiError(409, "tweetId is invalid");
 
   const tweet = await Tweet.findById(tweetId);
 
-  if (!tweet) throw new APiError(409, "tweet doesn't exists");
+  if (!tweet) throw new ApiError(409, "tweet doesn't exists");
 
   return res
     .status(200)

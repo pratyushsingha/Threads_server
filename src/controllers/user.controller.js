@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { User } from "../../models/user.model.js";
-import { APiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
@@ -15,7 +15,7 @@ const generateAccessAndRefreshToken = async (userId) => {
     await user.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };
   } catch (err) {
-    throw new APiError(
+    throw new ApiError(
       500,
       "something went wrong while genetation access and refresh token"
     );
@@ -27,7 +27,7 @@ const registerUser = asyncHandler(async (req, res) => {
   if (
     [fullName, email, username, password].some((field) => field?.trim === "")
   ) {
-    throw new APiError(400, "all fields are required");
+    throw new ApiError(400, "all fields are required");
   }
 
   const existingUser = await User.findOne({
@@ -35,7 +35,7 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (existingUser) {
-    throw new APiError(409, "user with this email or username already exists");
+    throw new ApiError(409, "user with this email or username already exists");
   }
   console.log(req.files);
 
@@ -56,7 +56,7 @@ const registerUser = asyncHandler(async (req, res) => {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
-  let tag = tags.split(" #");
+  let tag = tags?.split(" #");
 
   const avatar = await cloudinaryUpload(avatarLocalPath);
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
@@ -76,7 +76,7 @@ const registerUser = asyncHandler(async (req, res) => {
   );
 
   if (!createdUser) {
-    throw new APiError(500, "something went wrong while registering the user");
+    throw new ApiError(500, "something went wrong while registering the user");
   }
 
   return res
@@ -87,19 +87,19 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password, username } = req.body;
   if (!(username || email)) {
-    throw new APiError(400, "username or email is required");
+    throw new ApiError(400, "username or email is required");
   }
   const user = await User.findOne({
     $or: [{ email }, { username }],
   });
 
   if (!user) {
-    throw new APiError(400, "user doesn't exist");
+    throw new ApiError(400, "user doesn't exist");
   }
   const validatedPassword = await user.isPasswordCorrect(password);
 
   if (!validatedPassword) {
-    throw new APiError(401, "invalid user credentials");
+    throw new ApiError(401, "invalid user credentials");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
@@ -157,13 +157,13 @@ const updateAvatar = asyncHandler(async (req, res) => {
   const avatarLocalPath = req.file?.path;
 
   if (!avatarLocalPath) {
-    throw new APiError(400, "Avatar file is missing");
+    throw new ApiError(400, "Avatar file is missing");
   }
 
   const avatar = await cloudinaryUpload(avatarLocalPath);
 
   if (!avatar.url) {
-    throw new APiError(400, "Error while uploading on avatar");
+    throw new ApiError(400, "Error while uploading on avatar");
   }
 
   const user = await User.findByIdAndUpdate(
@@ -184,13 +184,13 @@ const updateAvatar = asyncHandler(async (req, res) => {
 const updateCoverImage = asyncHandler(async (req, res) => {
   const coverImageLocalPath = req.file?.path;
   if (!coverImageLocalPath) {
-    throw new APiError(400, "cover image is required");
+    throw new ApiError(400, "cover image is required");
   }
 
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
 
   if (!coverImage.url) {
-    throw new APiError(400, "error occured while updating the cover image");
+    throw new ApiError(400, "error occured while updating the cover image");
   }
 
   const user = await User.findByIdAndUpdate(
@@ -217,7 +217,7 @@ const changePassword = asyncHandler(async (req, res) => {
   const validateOldPassword = await user.isPasswordCorrect(oldPassword);
 
   if (!validateOldPassword) {
-    throw new APiError(400, "invalid old password");
+    throw new ApiError(400, "invalid old password");
   }
   user.password = newPassword;
 
@@ -232,15 +232,15 @@ const updateUserDetails = asyncHandler(async (req, res) => {
   const { username, email, fullName, portfolio, tags } = req.body;
 
   if (!username || !email || !fullName) {
-    throw new APiError(400, "All fields are required");
+    throw new ApiError(400, "All fields are required");
   }
   const usernameExists = await User.findOne({ username: { $eq: username } });
   if (usernameExists)
-    throw new APiError(422, "an user with this username already exists");
+    throw new ApiError(422, "an user with this username already exists");
 
   const emailExists = await User.findOne({ email: { $eq: email } });
   if (emailExists)
-    throw new APiError(422, "an user with this email already exists");
+    throw new ApiError(422, "an user with this email already exists");
 
   let tag = tags.split(" #");
 
@@ -273,7 +273,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
 const userProfile = asyncHandler(async (req, res) => {
   const { username } = req.params;
   if (!username.trim()) {
-    throw new APiError(400, "username is Misssing");
+    throw new ApiError(400, "username is Misssing");
   }
 
   const profileDetails = await User.aggregate([
@@ -339,7 +339,7 @@ const userProfile = asyncHandler(async (req, res) => {
   ]);
 
   if (!profileDetails)
-    throw new APiError(500, "something went wrong while fetching user details");
+    throw new ApiError(500, "something went wrong while fetching user details");
 
   return res
     .status(200)
@@ -402,7 +402,7 @@ const myProfileDetails = asyncHandler(async (req, res) => {
   ]);
 
   if (!profileDetails)
-    throw new APiError(500, "something went wrong while fetching your profile");
+    throw new ApiError(500, "something went wrong while fetching your profile");
 
   return res
     .status(200)
