@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import requestIp from "request-ip";
 import cookieParser from "cookie-parser";
-import { rateLimit } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 
 const app = express();
 
@@ -44,7 +44,6 @@ import likeRouter from "./src/routes/like.route.js";
 import commentRouter from "./src/routes/comment.route.js";
 import followRouter from "./src/routes/follow.route.js";
 import bookmarkRouter from "./src/routes/bookmark.route.js";
-import rateLimit from "express-rate-limit";
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/tweet", tweetRouter);

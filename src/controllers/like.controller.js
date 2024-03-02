@@ -7,16 +7,102 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
-  const dislikedTweet = await Like.deleteOne({
+  const dislikedTweet = await Like.findOneAndDelete({
     tweetId,
     likedBy: req.user?._id,
   });
-  if (dislikedTweet.deletedCount === 0)
-    throw new ApiError(500, "unable to dislike the tweet");
+  const tweet = await Tweet.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(tweetId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        commentCount: {
+          $size: "$comments",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+        isBookmarked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        likes: 0,
+        comments: 0,
+        bookmarks: 0,
+      },
+    },
+  ]);
+  if (!dislikedTweet) throw new ApiError(500, "unable to dislike the tweet");
 
   return res
     .status(201)
-    .json(new ApiResponse(201, "tweet disliked successfully"));
+    .json(new ApiResponse(201, tweet, "tweet disliked successfully"));
 });
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
@@ -36,10 +122,99 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
       tweetId,
       likedBy: req.user._id,
     });
+
+    const tweet = await Tweet.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(tweetId),
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "ownerDetails",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$ownerDetails",
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "likes",
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "comments",
+        },
+      },
+      {
+        $lookup: {
+          from: "bookmarks",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "bookmarks",
+        },
+      },
+      {
+        $addFields: {
+          likeCount: {
+            $size: "$likes",
+          },
+          commentCount: {
+            $size: "$comments",
+          },
+          isLiked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$likes.likedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+          isBookmarked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          likes: 0,
+          comments: 0,
+          bookmarks: 0,
+        },
+      },
+    ]);
+
     if (!likedTweet) throw new ApiError(500, "unable to like the tweet");
     return res
       .status(200)
-      .json(new ApiResponse(201, "tweet liked successfully"));
+      .json(new ApiResponse(201, tweet, "tweet liked successfully"));
   }
 
   if (isAlreadyLiked) {
@@ -54,9 +229,75 @@ const disLikeComment = asyncHandler(async (req, res, commentId) => {
   });
   if (!dislikedComment) throw new ApiError(500, "unable to dislike the tweet");
 
+  const comment = await Comment.aggregate([
+    [
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(commentId),
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "ownerDetails",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "commentId",
+          as: "likes",
+        },
+      },
+      {
+        $unwind: {
+          path: "$ownerDetails",
+        },
+      },
+      {
+        $addFields: {
+          likeCount: {
+            $size: "$likes",
+          },
+          isLiked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$likes.likedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          content: 1,
+          ownerDetails: 1,
+          likeCount: 1,
+          isLiked: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    ],
+  ]);
+
   return res
     .status(201)
-    .json(new ApiResponse(201, "comment disliked successfully"));
+    .json(new ApiResponse(201, comment, "comment disliked successfully"));
 });
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
@@ -77,7 +318,76 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
     });
     if (!likedComment) throw new ApiError(500, "unable to like the comment");
 
-    return res.status(200).json(new ApiResponse(201, "liked successfully"));
+    const comment = await Comment.aggregate([
+      [
+        {
+          $match: {
+            _id: new mongoose.Types.ObjectId(commentId),
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "owner",
+            foreignField: "_id",
+            as: "ownerDetails",
+            pipeline: [
+              {
+                $project: {
+                  username: 1,
+                  avatar: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $lookup: {
+            from: "likes",
+            localField: "_id",
+            foreignField: "commentId",
+            as: "likes",
+          },
+        },
+        {
+          $unwind: {
+            path: "$ownerDetails",
+          },
+        },
+        {
+          $addFields: {
+            likeCount: {
+              $size: "$likes",
+            },
+            isLiked: {
+              $cond: {
+                if: {
+                  $in: [req.user?._id, "$likes.likedBy"],
+                },
+                then: true,
+                else: false,
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            ownerDetails: 1,
+            likeCount: 1,
+            isLiked: 1,
+            createdAt: 1,
+            updatedAt: 1,
+
+          },
+        },
+      ],
+    ]);
+
+    return res
+      .status(200)
+      .json(new ApiResponse(201, comment, "liked successfully"));
   }
 
   await disLikeComment(req, res, commentId);

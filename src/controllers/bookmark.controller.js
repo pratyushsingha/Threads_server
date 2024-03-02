@@ -33,38 +33,198 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
         "something went wrong while bookmarking the tweet"
       );
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          bookmarked: true,
+    const tweet = await Tweet.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(tweetId),
         },
-        "bookmarked"
-      )
-    );
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "ownerDetails",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$ownerDetails",
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "likes",
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "comments",
+        },
+      },
+      {
+        $lookup: {
+          from: "bookmarks",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "bookmarks",
+        },
+      },
+      {
+        $addFields: {
+          likeCount: {
+            $size: "$likes",
+          },
+          commentCount: {
+            $size: "$comments",
+          },
+          isLiked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$likes.likedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+          isBookmarked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          likes: 0,
+          comments: 0,
+          bookmarks: 0,
+        },
+      },
+    ]);
+
+    return res.status(200).json(new ApiResponse(200, tweet, "bookmarked"));
   }
 
   if (isAlreadyBookmarked) {
-    const unBookmarkedTweet = await Bookmark.deleteOne({
+    const unBookmarkedTweet = await Bookmark.findOneAndDelete({
       tweetId,
-      bookmarkedBy: new mongoose.Types.ObjectId(req.user?._id),
+      bookmarkedBy: req.user?._id,
     });
 
-    if (unBookmarkedTweet.deletedCount === 0)
+    if (!unBookmarkedTweet)
       throw new ApiError(
         500,
         "something went wrong while bookmarking the tweet"
       );
 
-    return res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          bookmarked: false,
+    const tweet = await Tweet.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(tweetId),
         },
-        "unbookmarked"
-      )
-    );
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "ownerDetails",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$ownerDetails",
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "likes",
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "comments",
+        },
+      },
+      {
+        $lookup: {
+          from: "bookmarks",
+          localField: "_id",
+          foreignField: "tweetId",
+          as: "bookmarks",
+        },
+      },
+      {
+        $addFields: {
+          likeCount: {
+            $size: "$likes",
+          },
+          commentCount: {
+            $size: "$comments",
+          },
+          isLiked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$likes.likedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+          isBookmarked: {
+            $cond: {
+              if: {
+                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+              },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          likes: 0,
+          comments: 0,
+          bookmarks: 0,
+        },
+      },
+    ]);
+
+    return res.status(200).json(new ApiResponse(200, tweet, "unbookmarked"));
   }
 });
 

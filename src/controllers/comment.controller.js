@@ -252,6 +252,7 @@ const commentsOnComment = asyncHandler(async (req, res) => {
         ownerDetails: 1,
         likeCount: 1,
         isLiked: 1,
+        commentId: 1,
       },
     },
   ]);

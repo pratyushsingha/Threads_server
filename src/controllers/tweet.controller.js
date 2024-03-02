@@ -490,6 +490,113 @@ const getTweetById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, tweet, "tweet fetched successfully"));
 });
 
+const tweetDetails = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+
+  if (!tweetId) throw new ApiError(422, "tweetId is required");
+
+  if (!isValidObjectId(tweetId))
+    throw new ApiError(422, "tweetId is not valid");
+
+  const tweet = await Tweet.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(tweetId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        commentCount: {
+          $size: "$comments",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+        isBookmarked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        likes: 0,
+        comments: 0,
+        bookmarks: 0,
+      },
+    },
+  ]);
+
+  if (!tweet)
+    throw new ApiError(
+      500,
+      "something went wrong while fetching tweet Details"
+    );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweet, "tweet fetched successfully"));
+});
+
 export {
   createTweet,
   updateTweet,
@@ -499,4 +606,5 @@ export {
   feedTweets,
   getTweetById,
   publicTweets,
+  tweetDetails,
 };
