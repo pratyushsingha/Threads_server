@@ -9,6 +9,7 @@ import {
   myTweets,
   publicTweets,
   toggleIsAnonymous,
+  tweetDetails,
   updateTweet,
 } from "../controllers/tweet.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -35,6 +36,7 @@ router
   .delete(verifyJWT, deleteTweet)
   .get(verifyJWT, getTweetById);
 
+router.route("/tweet/:tweetId").get(verifyJWT, tweetDetails);
 router.route("/tweetStatus/:tweetId").patch(verifyJWT, toggleIsAnonymous);
 router.route("/").get(verifyJWT, feedTweets);
 

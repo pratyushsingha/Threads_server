@@ -66,7 +66,9 @@ const registerUser = asyncHandler(async (req, res) => {
     username,
     email,
     password,
-    avatar: avatar?.url || "",
+    avatar:
+      avatar?.url ||
+      `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff`,
     coverImage: coverImage?.url || "",
     tags: tag,
   });
