@@ -8,7 +8,7 @@ import { getMongoosePaginationOptions } from "../utils/helper.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 
 const createTweet = asyncHandler(async (req, res) => {
-  const { content, isAnonymous } = req.body;
+  const { content, isAnonymous, tags } = req.body;
   if (!content) {
     throw new ApiError(400, "tweet can't be empty");
   }
@@ -21,12 +21,16 @@ const createTweet = asyncHandler(async (req, res) => {
     imagesLocalPath = req.files.images.map((file) => file.path);
   }
   // console.log(imagesLocalPath);
+  const tag = tags.split(" #");
 
   let uploadImages = [];
   if (imagesLocalPath && imagesLocalPath.length > 0) {
     for (let path of imagesLocalPath) {
       const uploadedImage = await cloudinaryUpload(path);
-      uploadImages.push(uploadedImage.url);
+      console.log("Uploaded image:", uploadedImage); // Add this line to log uploadedImage
+      if (uploadedImage && uploadedImage.url) {
+        uploadImages.push(uploadedImage.url);
+      }
     }
   }
 
@@ -34,6 +38,7 @@ const createTweet = asyncHandler(async (req, res) => {
     content,
     images: uploadImages,
     isAnonymous,
+    tags: tag,
     owner: req.user._id,
   });
   if (!tweet) {

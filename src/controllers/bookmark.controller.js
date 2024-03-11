@@ -242,43 +242,35 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
         from: "tweets",
         localField: "tweetId",
         foreignField: "_id",
-        as: "bookmarkedTweet",
+        as: "bookmarkedTweets",
+      },
+    },
+    {
+      $unwind: "$bookmarkedTweets",
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "bookmarkedTweets.owner",
+        foreignField: "_id",
+        as: "ownerDetails",
         pipeline: [
           {
-            $lookup: {
-              from: "users",
-              localField: "owner",
-              foreignField: "_id",
-              as: "ownerDetails",
-              pipeline: [
-                {
-                  $project: {
-                    username: 1,
-                    avatar: 1,
-                  },
-                },
-              ],
+            $project: {
+              username: 1,
+              avatar: 1,
             },
-          },
-          {
-            $unwind: "$ownerDetails",
           },
         ],
       },
     },
     {
-      $project: {
-        _id: 0,
-        bookmarkedTweet: 1,
-      },
-    },
-    {
-      $unwind: "$bookmarkedTweet",
+      $unwind: "$ownerDetails",
     },
     {
       $lookup: {
         from: "likes",
-        localField: "bookmarkedTweet._id",
+        localField: "bookmarkedTweets._id",
         foreignField: "tweetId",
         as: "likes",
       },
@@ -286,16 +278,20 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
     {
       $lookup: {
         from: "comments",
-        localField: "bookmarkedTweet._id",
+        localField: "bookmarkedTweets._id",
         foreignField: "tweetId",
         as: "comments",
       },
     },
     {
       $addFields: {
-        likeCount: { $size: "$likes" },
-        commentCount: { $size: "$comments" },
-        isLiked: {
+        "bookmarkedTweets.likeCount": {
+          $size: "$likes",
+        },
+        "bookmarkedTweets.isBookmarked": true,
+        "bookmarkedTweets.ownerDetails": "$ownerDetails",
+        "bookmarkedTweets.commentCount": { $size: "$comments" },
+        "bookmarkedTweets.isLiked": {
           $cond: {
             if: {
               $in: [req.user?._id, "$likes.likedBy"],
@@ -307,9 +303,11 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
       },
     },
     {
-      $project: {
-        likes: 0,
-        comments: 0,
+      $group: {
+        _id: null,
+        bookmarkedTweet: {
+          $push: "$bookmarkedTweets",
+        },
       },
     },
   ]);
@@ -326,7 +324,7 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
     })
   );
 
-  if (!bookmarkedTweetsAggregate) {
+  if (!bookmarkedTweets) {
     throw new ApiError(500, "something went wrong while fetching the tweets");
   }
   // console.log(bookmarkedTweet);

@@ -379,7 +379,6 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
             isLiked: 1,
             createdAt: 1,
             updatedAt: 1,
-
           },
         },
       ],
@@ -406,51 +405,79 @@ const likedTweets = asyncHandler(async (req, res) => {
         localField: "tweetId",
         foreignField: "_id",
         as: "likedTweets",
+      },
+    },
+    {
+      $unwind: "$likedTweets",
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "likedTweets.owner",
+        foreignField: "_id",
+        as: "ownerDetails",
         pipeline: [
           {
-            $lookup: {
-              from: "users",
-              localField: "owner",
-              foreignField: "_id",
-              as: "ownerDetails",
-              pipeline: [
-                {
-                  $project: {
-                    username: 1,
-                    avatar: 1,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $unwind: {
-              path: "$ownerDetails",
+            $project: {
+              username: 1,
+              avatar: 1,
             },
           },
         ],
       },
     },
     {
-      $group: {
-        _id: null,
-        likedTweets: {
-          $push: "$likedTweets",
+      $unwind: "$ownerDetails",
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "likedTweets._id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "likedTweets._id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "likedTweets._id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $addFields: {
+        "likedTweets.likeCount": {
+          $size: "$likes",
+        },
+        "likedTweets.ownerDetails": "$ownerDetails",
+        "likedTweets.isLiked": true,
+        "likedTweets.commentCount": {
+          $size: "$comments",
+        },
+        "likedTweets.isBookmarked": {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
         },
       },
     },
     {
-      $project: {
-        _id: 0,
-        likedTweets: {
-          $reduce: {
-            input: "$likedTweets",
-            initialValue: [],
-            in: {
-              $concatArrays: ["$$value", "$$this"],
-            },
-          },
-        },
+      $group: {
+        _id: null,
+        likedTweets: { $push: "$likedTweets" },
       },
     },
   ]);
