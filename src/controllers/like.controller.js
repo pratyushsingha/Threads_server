@@ -5,6 +5,8 @@ import { Tweet } from "../../models/tweet.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { getMongoosePaginationOptions } from "../utils/helper.js";
+import { tweetAggregation } from "./tweet.controller.js";
 
 const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
   const dislikedTweet = await Like.findOneAndDelete({
@@ -17,86 +19,7 @@ const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
         _id: new mongoose.Types.ObjectId(tweetId),
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $unwind: {
-        path: "$ownerDetails",
-      },
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $lookup: {
-        from: "bookmarks",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "bookmarks",
-      },
-    },
-    {
-      $addFields: {
-        likeCount: {
-          $size: "$likes",
-        },
-        commentCount: {
-          $size: "$comments",
-        },
-        isLiked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$likes.likedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-        isBookmarked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        likes: 0,
-        comments: 0,
-        bookmarks: 0,
-      },
-    },
+    ...tweetAggregation(req),
   ]);
   if (!dislikedTweet) throw new ApiError(500, "unable to dislike the tweet");
 
@@ -129,86 +52,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
           _id: new mongoose.Types.ObjectId(tweetId),
         },
       },
-      {
-        $lookup: {
-          from: "users",
-          localField: "owner",
-          foreignField: "_id",
-          as: "ownerDetails",
-          pipeline: [
-            {
-              $project: {
-                username: 1,
-                avatar: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $unwind: {
-          path: "$ownerDetails",
-        },
-      },
-      {
-        $lookup: {
-          from: "likes",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "likes",
-        },
-      },
-      {
-        $lookup: {
-          from: "comments",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "comments",
-        },
-      },
-      {
-        $lookup: {
-          from: "bookmarks",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "bookmarks",
-        },
-      },
-      {
-        $addFields: {
-          likeCount: {
-            $size: "$likes",
-          },
-          commentCount: {
-            $size: "$comments",
-          },
-          isLiked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$likes.likedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-          isBookmarked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          likes: 0,
-          comments: 0,
-          bookmarks: 0,
-        },
-      },
+      ...tweetAggregation(req),
     ]);
 
     if (!likedTweet) throw new ApiError(500, "unable to like the tweet");
@@ -222,178 +66,9 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
   }
 });
 
-const disLikeComment = asyncHandler(async (req, res, commentId) => {
-  const dislikedComment = await Like.deleteOne({
-    commentId,
-    likedBy: req.user?._id,
-  });
-  if (!dislikedComment) throw new ApiError(500, "unable to dislike the tweet");
-
-  const comment = await Comment.aggregate([
-    [
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(commentId),
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "owner",
-          foreignField: "_id",
-          as: "ownerDetails",
-          pipeline: [
-            {
-              $project: {
-                username: 1,
-                avatar: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $lookup: {
-          from: "likes",
-          localField: "_id",
-          foreignField: "commentId",
-          as: "likes",
-        },
-      },
-      {
-        $unwind: {
-          path: "$ownerDetails",
-        },
-      },
-      {
-        $addFields: {
-          likeCount: {
-            $size: "$likes",
-          },
-          isLiked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$likes.likedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          content: 1,
-          ownerDetails: 1,
-          likeCount: 1,
-          isLiked: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      },
-    ],
-  ]);
-
-  return res
-    .status(201)
-    .json(new ApiResponse(201, comment, "comment disliked successfully"));
-});
-
-const toggleCommentLike = asyncHandler(async (req, res) => {
-  const { commentId } = req.params;
-  if (!commentId) throw new ApiError(400, "comment id is required");
-  const comment = await Comment.findById(commentId);
-
-  if (!comment) throw new ApiError(400, "comment doesn't exists");
-
-  const isAlreadyLiked = await Like.findOne({
-    commentId,
-    likedBy: req.user?._id,
-  });
-  if (!isAlreadyLiked) {
-    const likedComment = await Like.create({
-      commentId,
-      likedBy: req.user?._id,
-    });
-    if (!likedComment) throw new ApiError(500, "unable to like the comment");
-
-    const comment = await Comment.aggregate([
-      [
-        {
-          $match: {
-            _id: new mongoose.Types.ObjectId(commentId),
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "owner",
-            foreignField: "_id",
-            as: "ownerDetails",
-            pipeline: [
-              {
-                $project: {
-                  username: 1,
-                  avatar: 1,
-                },
-              },
-            ],
-          },
-        },
-        {
-          $lookup: {
-            from: "likes",
-            localField: "_id",
-            foreignField: "commentId",
-            as: "likes",
-          },
-        },
-        {
-          $unwind: {
-            path: "$ownerDetails",
-          },
-        },
-        {
-          $addFields: {
-            likeCount: {
-              $size: "$likes",
-            },
-            isLiked: {
-              $cond: {
-                if: {
-                  $in: [req.user?._id, "$likes.likedBy"],
-                },
-                then: true,
-                else: false,
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            content: 1,
-            ownerDetails: 1,
-            likeCount: 1,
-            isLiked: 1,
-            createdAt: 1,
-            updatedAt: 1,
-          },
-        },
-      ],
-    ]);
-
-    return res
-      .status(200)
-      .json(new ApiResponse(201, comment, "liked successfully"));
-  }
-
-  await disLikeComment(req, res, commentId);
-});
-
 const likedTweets = asyncHandler(async (req, res) => {
-  const tweets = await Like.aggregate([
+  const { page, limit } = req.query;
+  const tweetAggregate = Like.aggregate([
     {
       $match: {
         likedBy: new mongoose.Types.ObjectId(req.user?._id),
@@ -482,15 +157,27 @@ const likedTweets = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if (!tweets)
+  if (!tweetAggregate)
     throw new ApiError(
       500,
       "something went wrong while fetching the liked tweets"
     );
+
+  const tweets = await Like.aggregatePaginate(
+    tweetAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalTweets",
+        docs: "tweets",
+      },
+    })
+  );
 
   return res
     .status(200)
     .json(new ApiResponse(201, tweets, "liked tweets fetched successfully"));
 });
 
-export { toggleTweetLike, toggleCommentLike, likedTweets };
+export { toggleTweetLike, likedTweets };

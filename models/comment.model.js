@@ -7,9 +7,22 @@ const commentSchema = new Schema(
       type: String,
       required: true,
     },
+    images: {
+      type: [String],
+      default: [],
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
     commentId: {
       type: Schema.Types.ObjectId,
       ref: "Comment",
+    },
+    isAnonymous: {
+      type: Boolean,
+      default: false,
+      required: true,
     },
     tweetId: {
       type: Schema.Types.ObjectId,

@@ -29,6 +29,15 @@ const tweetSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    // TODO: Add retweetId field
+    tweetId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tweet",
+    },
+    isTweet: {
+      type: Boolean,
+      required: true,
+    },
   },
   { timestamps: true }
 );

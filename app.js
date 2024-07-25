@@ -12,6 +12,19 @@ app.use(
     credentials: true,
   })
 );
+
+app.use((req, res, next) => {
+  const originalSend = res.send;
+  res.send = function (body) {
+      console.log("Status Code:", res.statusCode); // Log the status code
+      if (res.statusCode < 100 || res.statusCode > 599) {
+          res.statusCode = 500; // Set to 500 if invalid
+      }
+      return originalSend.call(this, body);
+  };
+  next();
+});
+
 app.use(requestIp.mw());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -41,16 +54,16 @@ import userRouter from "./src/routes/user.route.js";
 import tweetRouter from "./src/routes/tweet.route.js";
 import healthcheckRouter from "./src/routes/healthCheck.route.js";
 import likeRouter from "./src/routes/like.route.js";
-import commentRouter from "./src/routes/comment.route.js";
 import followRouter from "./src/routes/follow.route.js";
 import bookmarkRouter from "./src/routes/bookmark.route.js";
+import repostRouter from "./src/routes/repost.route.js";
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/tweet", tweetRouter);
 app.use("/api/v1/healthcheck", healthcheckRouter);
 app.use("/api/v1/like", likeRouter);
-app.use("/api/v1/comments", commentRouter);
 app.use("/api/v1/follow", followRouter);
 app.use("/api/v1/bookmarks", bookmarkRouter);
+app.use("/api/v1/reposts", repostRouter);
 
 export { app };

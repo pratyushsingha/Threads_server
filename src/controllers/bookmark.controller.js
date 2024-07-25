@@ -4,8 +4,8 @@ import { Tweet } from "../../models/tweet.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { User } from "../../models/user.model.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
+import { tweetAggregation } from "./tweet.controller.js";
 
 const bookmarkTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
@@ -39,86 +39,7 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
           _id: new mongoose.Types.ObjectId(tweetId),
         },
       },
-      {
-        $lookup: {
-          from: "users",
-          localField: "owner",
-          foreignField: "_id",
-          as: "ownerDetails",
-          pipeline: [
-            {
-              $project: {
-                username: 1,
-                avatar: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $unwind: {
-          path: "$ownerDetails",
-        },
-      },
-      {
-        $lookup: {
-          from: "likes",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "likes",
-        },
-      },
-      {
-        $lookup: {
-          from: "comments",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "comments",
-        },
-      },
-      {
-        $lookup: {
-          from: "bookmarks",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "bookmarks",
-        },
-      },
-      {
-        $addFields: {
-          likeCount: {
-            $size: "$likes",
-          },
-          commentCount: {
-            $size: "$comments",
-          },
-          isLiked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$likes.likedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-          isBookmarked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          likes: 0,
-          comments: 0,
-          bookmarks: 0,
-        },
-      },
+      ...tweetAggregation(req),
     ]);
 
     return res.status(200).json(new ApiResponse(200, tweet, "bookmarked"));
@@ -142,86 +63,7 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
           _id: new mongoose.Types.ObjectId(tweetId),
         },
       },
-      {
-        $lookup: {
-          from: "users",
-          localField: "owner",
-          foreignField: "_id",
-          as: "ownerDetails",
-          pipeline: [
-            {
-              $project: {
-                username: 1,
-                avatar: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $unwind: {
-          path: "$ownerDetails",
-        },
-      },
-      {
-        $lookup: {
-          from: "likes",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "likes",
-        },
-      },
-      {
-        $lookup: {
-          from: "comments",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "comments",
-        },
-      },
-      {
-        $lookup: {
-          from: "bookmarks",
-          localField: "_id",
-          foreignField: "tweetId",
-          as: "bookmarks",
-        },
-      },
-      {
-        $addFields: {
-          likeCount: {
-            $size: "$likes",
-          },
-          commentCount: {
-            $size: "$comments",
-          },
-          isLiked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$likes.likedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-          isBookmarked: {
-            $cond: {
-              if: {
-                $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-              },
-              then: true,
-              else: false,
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          likes: 0,
-          comments: 0,
-          bookmarks: 0,
-        },
-      },
+      ...tweetAggregation(req),
     ]);
 
     return res.status(200).json(new ApiResponse(200, tweet, "unbookmarked"));
@@ -231,7 +73,7 @@ const bookmarkTweet = asyncHandler(async (req, res) => {
 const allBookMarkedTweets = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
 
-  const bookmarkedTweets = await Bookmark.aggregate([
+  const bookmarkTweetAggregate = Bookmark.aggregate([
     {
       $match: {
         bookmarkedBy: new mongoose.Types.ObjectId(req.user?._id),
@@ -312,8 +154,12 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
     },
   ]);
 
+  if (!bookmarkTweetAggregate) {
+    throw new ApiError(500, "something went wrong while fetching the tweets");
+  }
+
   const tweets = await Bookmark.aggregatePaginate(
-    bookmarkedTweets,
+    bookmarkTweetAggregate,
     getMongoosePaginationOptions({
       page,
       limit,
@@ -323,18 +169,25 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
       },
     })
   );
-
-  if (!bookmarkedTweets) {
-    throw new ApiError(500, "something went wrong while fetching the tweets");
+  const isEmpty = tweets.tweets[0].bookmarkedTweet.length;
+  if (isEmpty < 1) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          201,
+          (tweets.tweets[0].bookmarkedTweet = []),
+          "bookmarked tweets fetched successfully"
+        )
+      );
   }
-  // console.log(bookmarkedTweet);
 
   return res
     .status(200)
     .json(
       new ApiResponse(
         201,
-        bookmarkedTweets,
+        tweets.tweets[0],
         "bookmarked tweets fetched successfully"
       )
     );

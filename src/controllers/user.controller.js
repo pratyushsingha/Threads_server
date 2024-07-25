@@ -313,7 +313,7 @@ const userProfile = asyncHandler(async (req, res) => {
         },
         isFollowing: {
           $cond: {
-            if: { $in: [req.user?._id, "$followers.followerId"] },
+            if: { $in: [req.user._id, "$following.followedBy"] },
             then: true,
             else: false,
           },
@@ -340,7 +340,9 @@ const userProfile = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(201, profileDetails, "profile fetched successfully"));
+    .json(
+      new ApiResponse(201, profileDetails[0], "profile fetched successfully")
+    );
 });
 
 const myProfileDetails = asyncHandler(async (req, res) => {
