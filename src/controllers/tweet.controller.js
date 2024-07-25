@@ -7,8 +7,101 @@ import { User } from "../../models/user.model.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 
+export const tweetAggregation = (req) => {
+  return [
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              _id: 1,
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "bookmarks",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "bookmarks",
+      },
+    },
+    {
+      $lookup: {
+        from: "tweets",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "comments",
+      },
+    },
+    {
+      $unwind: {
+        path: "$ownerDetails",
+      },
+    },
+    {
+      $addFields: {
+        likeCount: {
+          $size: "$likes",
+        },
+        commentCount: {
+          $size: "$comments",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$likes.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+        isBookmarked: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        isAnonymous: 1,
+        content: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        ownerDetails: 1,
+        likeCount: 1,
+        commentCount: 1,
+        isLiked: 1,
+        isBookmarked: 1,
+        tweetId: 1,
+      },
+    },
+  ];
+};
+
 const createTweet = asyncHandler(async (req, res) => {
-  const { content, isAnonymous } = req.body;
+  const { content, isAnonymous, tags } = req.body;
   if (!content) {
     throw new ApiError(400, "tweet can't be empty");
   }
@@ -21,12 +114,16 @@ const createTweet = asyncHandler(async (req, res) => {
     imagesLocalPath = req.files.images.map((file) => file.path);
   }
   // console.log(imagesLocalPath);
+  const tag = tags?.split(" #");
 
   let uploadImages = [];
   if (imagesLocalPath && imagesLocalPath.length > 0) {
     for (let path of imagesLocalPath) {
       const uploadedImage = await cloudinaryUpload(path);
-      uploadImages.push(uploadedImage.url);
+      console.log("Uploaded image:", uploadedImage);
+      if (uploadedImage && uploadedImage.url) {
+        uploadImages.push(uploadedImage.url);
+      }
     }
   }
 
@@ -34,7 +131,9 @@ const createTweet = asyncHandler(async (req, res) => {
     content,
     images: uploadImages,
     isAnonymous,
+    tags: tag,
     owner: req.user._id,
+    isTweet: true,
   });
   if (!tweet) {
     throw new ApiError(500, "unable to create tweet");
@@ -104,205 +203,80 @@ const deleteTweet = asyncHandler(async (req, res) => {
 });
 
 const myTweets = asyncHandler(async (req, res) => {
-  const userTweets = await Tweet.aggregate([
+  const { page, limit } = req.query;
+  const { username } = req.params;
+
+  const userId = await User.findOne({ username }).select("_id");
+  if (!userId) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const userTweetAggregate = Tweet.aggregate([
     {
       $match: {
-        owner: new mongoose.Types.ObjectId(req.user?._id),
+        owner: new mongoose.Types.ObjectId(userId),
+        tweetId: null,
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $unwind: {
-        path: "$ownerDetails",
-      },
-    },
-
-    {
-      $lookup: {
-        from: "likes",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $lookup: {
-        from: "bookmarks",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "bookmarks",
-      },
-    },
-    {
-      $addFields: {
-        likeCount: {
-          $size: "$likes",
-        },
-        commentCount: {
-          $size: "$comments",
-        },
-        isLiked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$likes.likedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-        isBookmarked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        content: 1,
-        images: 1,
-        isAnonymous: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        ownerDetails: 1,
-        likeCount: 1,
-        commentCount: 1,
-        isLiked: 1,
-        isBookmarked: 1,
-      },
-    },
+    ...tweetAggregation(req),
   ]);
 
-  if (!userTweets)
+  if (!userTweetAggregate)
     throw new ApiError(500, "something went wrong while fetching ur tweets");
+
+  const tweets = await Tweet.aggregatePaginate(
+    userTweetAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "myTweets",
+        docs: "tweets",
+      },
+    })
+  );
 
   return res
     .status(200)
-    .json(new ApiResponse(201, userTweets, "tweets fetched successfully"));
+    .json(new ApiResponse(201, tweets, "tweets fetched successfully"));
 });
 
 const publicTweets = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
   const { username } = req.params;
-  if (!username.trim()) throw new ApiError(422, "username is required");
 
-  const tweets = await User.aggregate([
+  const userId = await User.findOne({ username }).select("_id");
+  if (!userId) {
+    throw new ApiError(404, "User not found");
+  }
+  const publicTweetsAggregate = Tweet.aggregate([
     {
       $match: {
-        username,
+        owner: new mongoose.Types.ObjectId(userId),
+        isAnonymous: false,
+        tweetId: null,
       },
     },
-    {
-      $lookup: {
-        from: "tweets",
-        localField: "_id",
-        foreignField: "owner",
-        as: "allTweets",
-        pipeline: [
-          {
-            $lookup: {
-              from: "likes",
-              localField: "_id",
-              foreignField: "tweet",
-              as: "likes",
-            },
-          },
-          {
-            $lookup: {
-              from: "comments",
-              localField: "_id",
-              foreignField: "tweet",
-              as: "comments",
-            },
-          },
-          {
-            $addFields: {
-              likeCount: {
-                $size: "$likes",
-              },
-              commentCount: {
-                $size: "$comments",
-              },
-              isLiked: {
-                $cond: {
-                  if: {
-                    $in: [req.user?._id, "$likes.likedBy"],
-                  },
-                  then: true,
-                  else: false,
-                },
-              },
-            },
-          },
-          {
-            $project: {
-              _id: 1,
-              content: 1,
-              images: 1,
-              isAnonymous: 1,
-              createdAt: 1,
-              updatedAt: 1,
-              likeCount: 1,
-              commentCount: 1,
-              isLiked: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $addFields: {
-        publicTweets: {
-          $filter: {
-            input: "$allTweets",
-            as: "tweets",
-            cond: {
-              $eq: ["$$tweets.isAnonymous", false],
-            },
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        username: 1,
-        avatar: 1,
-        publicTweets: 1,
-      },
-    },
+    ...tweetAggregation(req),
   ]);
 
-  if (!tweets)
+  if (!publicTweetsAggregate)
     throw new ApiError(
       500,
       "something went wrong while fetching all the tweets"
     );
+
+  const tweets = await Tweet.aggregatePaginate(
+    publicTweetsAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        publicTweets: "totalTweets",
+        docs: "tweets",
+      },
+    })
+  );
 
   return res
     .status(200)
@@ -374,85 +348,11 @@ const feedTweets = asyncHandler(async (req, res) => {
 
   const tweetAggregate = Tweet.aggregate([
     {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
+      $match: {
+        tweetId: null,
       },
     },
-    {
-      $unwind: {
-        path: "$ownerDetails",
-      },
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $lookup: {
-        from: "bookmarks",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "bookmarks",
-      },
-    },
-    {
-      $addFields: {
-        likeCount: {
-          $size: "$likes",
-        },
-        commentCount: {
-          $size: "$comments",
-        },
-        isLiked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$likes.likedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-        isBookmarked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        likes: 0,
-        comments: 0,
-        bookmarks: 0,
-      },
-    },
+    ...tweetAggregation(req),
   ]);
 
   const tweets = await Tweet.aggregatePaginate(
@@ -504,86 +404,7 @@ const tweetDetails = asyncHandler(async (req, res) => {
         _id: new mongoose.Types.ObjectId(tweetId),
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $unwind: {
-        path: "$ownerDetails",
-      },
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $lookup: {
-        from: "bookmarks",
-        localField: "_id",
-        foreignField: "tweetId",
-        as: "bookmarks",
-      },
-    },
-    {
-      $addFields: {
-        likeCount: {
-          $size: "$likes",
-        },
-        commentCount: {
-          $size: "$comments",
-        },
-        isLiked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$likes.likedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-        isBookmarked: {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        likes: 0,
-        comments: 0,
-        bookmarks: 0,
-      },
-    },
+    ...tweetAggregation(req),
   ]);
 
   if (!tweet)
@@ -597,6 +418,140 @@ const tweetDetails = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, tweet, "tweet fetched successfully"));
 });
 
+const replyOnTweet = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { content, isAnonymous, tags } = req.body;
+  if (!content) {
+    throw new ApiError(400, "tweet can't be empty");
+  }
+  let imagesLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.images) &&
+    req.files.images.length > 0
+  ) {
+    imagesLocalPath = req.files.images.map((file) => file.path);
+  }
+  // console.log(imagesLocalPath);
+  const tag = tags?.split(" #");
+
+  let uploadImages = [];
+  if (imagesLocalPath && imagesLocalPath.length > 0) {
+    for (let path of imagesLocalPath) {
+      const uploadedImage = await cloudinaryUpload(path);
+      console.log("Uploaded image:", uploadedImage);
+      if (uploadedImage && uploadedImage.url) {
+        uploadImages.push(uploadedImage.url);
+      }
+    }
+  }
+
+  const tweet = await Tweet.create({
+    content,
+    images: uploadImages,
+    isAnonymous,
+    tags: tag,
+    owner: req.user._id,
+    tweetId,
+    isTweet: false,
+  });
+
+  if (!tweet) {
+    throw new ApiError(500, "unable to create tweet");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweet, "replied on tweet successfully"));
+});
+
+const getAllReplies = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+  const { tweetId } = req.params;
+
+  const replyAggregate = Tweet.aggregate([
+    {
+      $match: {
+        tweetId: new mongoose.Types.ObjectId(tweetId),
+      },
+    },
+    ...tweetAggregation(req),
+  ]);
+
+  if (!replyAggregate) {
+    throw new ApiError(500, "something went wrong");
+  }
+
+  const tweetReplies = await Tweet.aggregatePaginate(
+    replyAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalReplies",
+        docs: "replies",
+      },
+    })
+  );
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, tweetReplies, "tweet replies fetched successfully")
+    );
+});
+
+const getAllRepliedTweets = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+  const { username } = req.params;
+
+  const userId = await User.findOne({ username }).select("_id");
+
+  const repliedTweetAggregation = Tweet.aggregate([
+    {
+      $match: {
+        owner: new mongoose.Types.ObjectId(userId),
+        isTweet: false,
+      },
+    },
+    ...tweetAggregation(req),
+    {
+      $lookup: {
+        from: "tweets",
+        localField: "tweetId",
+        foreignField: "_id",
+        as: "tweetDetails",
+        pipeline: [...tweetAggregation(req)],
+      },
+    },
+    {
+      $unwind: {
+        path: "$tweetDetails",
+      },
+    },
+  ]);
+
+  if (!repliedTweetAggregation) {
+    throw new ApiError(500, "something went wrong while getting repliedTweets");
+  }
+
+  const tweets = await Tweet.aggregatePaginate(
+    repliedTweetAggregation,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalRepliedTweets",
+        docs: "repliedTweets",
+      },
+    })
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, tweets, "tweets fetched successfully"));
+});
+
 export {
   createTweet,
   updateTweet,
@@ -607,4 +562,7 @@ export {
   getTweetById,
   publicTweets,
   tweetDetails,
+  replyOnTweet,
+  getAllReplies,
+  getAllRepliedTweets,
 };

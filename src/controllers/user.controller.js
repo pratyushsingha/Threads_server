@@ -23,7 +23,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 };
 
 const registerUser = asyncHandler(async (req, res) => {
-  const { fullName, email, username, password, tags } = req.body;
+  const { fullName, email, username, password, tags, bio } = req.body;
   if (
     [fullName, email, username, password].some((field) => field?.trim === "")
   ) {
@@ -56,7 +56,7 @@ const registerUser = asyncHandler(async (req, res) => {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
-  let tag = tags?.split(" #");
+  let tag = tags?.split(" ");
 
   const avatar = await cloudinaryUpload(avatarLocalPath);
   const coverImage = await cloudinaryUpload(coverImageLocalPath);
@@ -69,8 +69,9 @@ const registerUser = asyncHandler(async (req, res) => {
     avatar:
       avatar?.url ||
       `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff`,
-    coverImage: coverImage?.url || "",
+    coverImage: coverImage?.url || "https://shorturl.at/oKNUV",
     tags: tag,
+    bio,
   });
 
   const createdUser = await User.findById(user._id).select(
@@ -231,20 +232,13 @@ const changePassword = asyncHandler(async (req, res) => {
 });
 
 const updateUserDetails = asyncHandler(async (req, res) => {
-  const { username, email, fullName, portfolio, tags } = req.body;
+  const { username, email, fullName, portfolio, tags, bio } = req.body;
 
-  if (!username || !email || !fullName) {
-    throw new ApiError(400, "All fields are required");
-  }
   const usernameExists = await User.findOne({ username: { $eq: username } });
   if (usernameExists)
     throw new ApiError(422, "an user with this username already exists");
 
-  const emailExists = await User.findOne({ email: { $eq: email } });
-  if (emailExists)
-    throw new ApiError(422, "an user with this email already exists");
-
-  let tag = tags.split(" #");
+  let tag = tags.split(" ");
 
   const updatedprofileDetails = await User.findByIdAndUpdate(
     req.user._id,
@@ -255,6 +249,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
         fullName,
         tags: tag,
         portfolio,
+        bio,
       },
     },
     {
@@ -318,7 +313,7 @@ const userProfile = asyncHandler(async (req, res) => {
         },
         isFollowing: {
           $cond: {
-            if: { $in: [req.user?._id, "$followers.followerId"] },
+            if: { $in: [req.user._id, "$following.followedBy"] },
             then: true,
             else: false,
           },
@@ -345,7 +340,9 @@ const userProfile = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(201, profileDetails, "profile fetched successfully"));
+    .json(
+      new ApiResponse(201, profileDetails[0], "profile fetched successfully")
+    );
 });
 
 const myProfileDetails = asyncHandler(async (req, res) => {
@@ -397,6 +394,9 @@ const myProfileDetails = asyncHandler(async (req, res) => {
         createdAt: 1,
         coverImage: 1,
         avatar: 1,
+        tags: 1,
+        bio: 1,
+        portfolio: 1,
         followersCount: 1,
         followingCount: 1,
       },

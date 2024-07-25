@@ -5,9 +5,12 @@ import {
   createTweet,
   deleteTweet,
   feedTweets,
+  getAllRepliedTweets,
+  getAllReplies,
   getTweetById,
   myTweets,
   publicTweets,
+  replyOnTweet,
   toggleIsAnonymous,
   tweetDetails,
   updateTweet,
@@ -28,7 +31,7 @@ router.route("/").post(
   createTweet
 );
 
-router.route("/my").get(verifyJWT, myTweets);
+router.route("/tweets/:username").get(verifyJWT, myTweets);
 router.route("/:username").get(verifyJWT, publicTweets);
 router
   .route("/:tweetId")
@@ -39,5 +42,19 @@ router
 router.route("/tweet/:tweetId").get(verifyJWT, tweetDetails);
 router.route("/tweetStatus/:tweetId").patch(verifyJWT, toggleIsAnonymous);
 router.route("/").get(verifyJWT, feedTweets);
+router
+  .route("/reply/:tweetId")
+  .get(verifyJWT, getAllReplies)
+  .post(
+    verifyJWT,
+    upload.fields([
+      {
+        name: "images",
+        maxCount: MAXIMUM_TWEET_IMAGE_COUNT,
+      },
+    ]),
+    replyOnTweet
+  );
+router.route("/reply/u/:username").get(verifyJWT, getAllRepliedTweets);
 
 export default router;
