@@ -234,13 +234,28 @@ const changePassword = asyncHandler(async (req, res) => {
 const updateUserDetails = asyncHandler(async (req, res) => {
   const { username, email, fullName, portfolio, tags, bio } = req.body;
 
+  const avatarLocalPath = req.file ? req.file.path : null;
+  console.log(avatarLocalPath)
+
   const usernameExists = await User.findOne({ username: { $eq: username } });
   if (usernameExists)
     throw new ApiError(422, "an user with this username already exists");
 
   let tag = tags.split(" ");
+  let avatarUrl;
 
-  const updatedprofileDetails = await User.findByIdAndUpdate(
+  if (avatarLocalPath) {
+    const avatar = await cloudinaryUpload(avatarLocalPath);
+    console.log("Avatar upload result:", avatar); // Logging to debug
+
+    if (!avatar.url) {
+      throw new ApiError(400, "Error while uploading avatar");
+    }
+    avatarUrl = avatar.url;
+    fs.unlinkSync(avatarLocalPath); // Delete the local file
+  }
+
+  const updatedProfileDetails = await User.findByIdAndUpdate(
     req.user._id,
     {
       $set: {
@@ -250,19 +265,21 @@ const updateUserDetails = asyncHandler(async (req, res) => {
         tags: tag,
         portfolio,
         bio,
+        ...(avatarUrl && { avatar: avatarUrl }),
       },
     },
     {
       new: true,
     }
   ).select("-password -refreshToken");
+
   return res
     .status(200)
     .json(
       new ApiResponse(
         201,
-        updatedprofileDetails,
-        "profile updated successfully"
+        updatedProfileDetails,
+        "Profile updated successfully"
       )
     );
 });
@@ -324,6 +341,9 @@ const userProfile = asyncHandler(async (req, res) => {
       $project: {
         username: 1,
         fullName: 1,
+        bio: 1,
+        tags: 1,
+        portfolio: 1,
         email: 1,
         createdAt: 1,
         coverImage: 1,
