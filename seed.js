@@ -7,13 +7,8 @@ import { Like } from "./models/like.model.js";
 import { Follow } from "./models/follow.model.js";
 import connectDB from "./src/db/index.js";
 
-mongoose.connect(
-  "mongodb+srv://pratyushsingha83:Singha%402004@freeapi.lhq8ybh.mongodb.net/x",
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  }
-);
+await connectDB();
+
 const seedUsers = async (num) => {
   const users = [];
   for (let i = 0; i < num; i++) {
