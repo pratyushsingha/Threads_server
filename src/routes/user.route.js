@@ -7,6 +7,8 @@ import {
   logoutUser,
   myProfileDetails,
   registerUser,
+  searchUser,
+  suggestUser,
   updateAvatar,
   updateCoverImage,
   updateUserDetails,
@@ -43,4 +45,7 @@ router
 router.route("/profile/u/:username").get(verifyJWT, userProfile);
 router.route("/profile/my").get(verifyJWT, myProfileDetails);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
+router.route("/search").get(verifyJWT, searchUser);
+router.route("/suggestions").get(verifyJWT, suggestUser);
+
 export default router;

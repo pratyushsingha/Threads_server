@@ -12,10 +12,6 @@ const repostSchema = new Schema(
       ref: "User",
       required: true,
     },
-    commentId: {
-      type: Schema.Types.ObjectId,
-      ref: "Comment",
-    },
     isTweet: {
       type: Boolean,
       required: true,

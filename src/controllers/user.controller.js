@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
+import { getMongoosePaginationOptions } from "../utils/helper.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -20,6 +21,42 @@ const generateAccessAndRefreshToken = async (userId) => {
       "something went wrong while genetation access and refresh token"
     );
   }
+};
+
+const userdetailsAggregation = (req) => {
+  return [
+    {
+      $lookup: {
+        from: "follows",
+        localField: "_id",
+        foreignField: "followedBy",
+        as: "followers",
+      },
+    },
+    {
+      $addFields: {
+        isFollowing: {
+          $cond: {
+            if: {
+              $in: [req.user._id, "$followers.followedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        fullName: 1,
+        username: 1,
+        avatar: 1,
+        isFollowing: 1,
+        followerCount: { $size: "$followers" },
+      },
+    },
+  ];
 };
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -235,7 +272,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
   const { username, email, fullName, portfolio, tags, bio } = req.body;
 
   const avatarLocalPath = req.file ? req.file.path : null;
-  console.log(avatarLocalPath)
+  console.log(avatarLocalPath);
 
   const usernameExists = await User.findOne({ username: { $eq: username } });
   if (usernameExists)
@@ -437,6 +474,69 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, req.user, "user fetched successfully"));
 });
 
+const searchUser = asyncHandler(async (req, res) => {
+  const search = req.query.q;
+  if (!search) {
+    throw new ApiError(400, "search query is required");
+  }
+
+  const users = await User.aggregate([
+    {
+      $match: {
+        $or: [
+          { username: { $regex: search, $options: "i" } },
+          { fullName: { $regex: search, $options: "i" } },
+        ],
+      },
+    },
+    ...userdetailsAggregation(req),
+  ]);
+
+  if (!users) {
+    throw new ApiError(404, "No user found");
+  }
+  res
+    .status(200)
+    .json(new ApiResponse(201, users, "users fetched successfully"));
+});
+
+const suggestUser = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+
+  const userAggregate = User.aggregate([
+    {
+      $match: {
+        _id: { $ne: new mongoose.Types.ObjectId(req.user._id) },
+      },
+    },
+    {
+      $sample: {
+        size: 20,
+      },
+    },
+    ...userdetailsAggregation(req),
+  ]);
+
+  if (!userAggregate)
+    return res.status(200).json(new ApiResponse(200, [], "no users found"));
+
+  const users = await User.aggregatePaginate(
+    userAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "suggestedUsers",
+        docs: "users",
+      },
+    })
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(201, users, "suggested users fetched successfully"));
+});
+
 export {
   registerUser,
   loginUser,
@@ -448,4 +548,6 @@ export {
   userProfile,
   getCurrentUser,
   myProfileDetails,
+  searchUser,
+  suggestUser,
 };
