@@ -51,6 +51,14 @@ export const tweetAggregation = (req) => {
       },
     },
     {
+      $lookup: {
+        from: "reposts",
+        localField: "_id",
+        foreignField: "tweetId",
+        as: "reposts",
+      },
+    },
+    {
       $unwind: {
         path: "$ownerDetails",
       },
@@ -81,6 +89,15 @@ export const tweetAggregation = (req) => {
             else: false,
           },
         },
+        isReposted: {
+          $cond: {
+            if: {
+              $in: [req.user?._id, "$reposts.userId"],
+            },
+            then: true,
+            else: false,
+          },
+        },
       },
     },
     {
@@ -94,6 +111,7 @@ export const tweetAggregation = (req) => {
         commentCount: 1,
         isLiked: 1,
         isBookmarked: 1,
+        isReposted: 1,
         tweetId: 1,
       },
     },

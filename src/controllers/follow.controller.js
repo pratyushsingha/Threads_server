@@ -1,8 +1,11 @@
+import mongoose from "mongoose";
 import { Follow } from "../../models/follow.model.js";
 import { User } from "../../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { tweetAggregation } from "./tweet.controller.js";
+import { getMongoosePaginationOptions } from "../utils/helper.js";
 
 const followUnfollowUser = asyncHandler(async (req, res) => {
   const { followerId } = req.params;
@@ -57,5 +60,59 @@ const followUnfollowUser = asyncHandler(async (req, res) => {
   }
 });
 
+const followingUsersTweets = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
 
-export { followUnfollowUser};
+  const tweetsAggregate = Follow.aggregate([
+    [
+      {
+        $match: {
+          followedBy: new mongoose.Types.ObjectId(req.user._id),
+        },
+      },
+      {
+        $lookup: {
+          from: "tweets",
+          localField: "followerId",
+          foreignField: "owner",
+          as: "tweets",
+          pipeline: [...tweetAggregation(req)],
+        },
+      },
+      {
+        $unwind: {
+          path: "$tweets",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          tweets: {
+            $push: "$tweets",
+          },
+        },
+      },
+    ],
+  ]);
+
+  if (!tweetsAggregate)
+    return res.status(200).json(new ApiResponse(200, [], "no tweets found"));
+
+  const tweets = await Follow.aggregatePaginate(
+    tweetsAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "followingTweets",
+        docs: "tweets",
+      },
+    })
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, tweets, "tweets fethed successfully"));
+});
+
+export { followUnfollowUser, followingUsersTweets };
