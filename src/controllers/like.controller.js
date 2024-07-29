@@ -1,12 +1,16 @@
 import mongoose from "mongoose";
-import { Comment } from "../../models/comment.model.js";
 import { Like } from "../../models/like.model.js";
 import { Tweet } from "../../models/tweet.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { getMongoosePaginationOptions } from "../utils/helper.js";
+import {
+  getMongoosePaginationOptions,
+  getPusherActivityOptions,
+} from "../utils/helper.js";
 import { tweetAggregation } from "./tweet.controller.js";
+import { pusher } from "../../app.js";
+import { Activity } from "../../models/activity.model.js";
 
 const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
   const dislikedTweet = await Like.findOneAndDelete({
@@ -30,23 +34,25 @@ const disLikeTweet = asyncHandler(async (req, res, tweetId) => {
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  if (!tweetId) throw new ApiError(400, "tweet id is missing");
+  if (!tweetId) throw new ApiError(400, "Tweet ID is missing");
 
-  const tweetExists = await Tweet.findById(tweetId);
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) throw new ApiError(400, "Tweet doesn't exist");
 
-  if (!tweetExists) throw new ApiError(400, "tweet doesn't exists");
+  const tweetOwnerId = tweet.owner.toString();
+
   const isAlreadyLiked = await Like.findOne({
     tweetId,
-    likedBy: req.user?._id,
+    likedBy: req.user._id,
   });
-  //   console.log(isAlreadyLiked);
+
   if (!isAlreadyLiked) {
     const likedTweet = await Like.create({
       tweetId,
       likedBy: req.user._id,
     });
 
-    const tweet = await Tweet.aggregate([
+    const tweetData = await Tweet.aggregate([
       {
         $match: {
           _id: new mongoose.Types.ObjectId(tweetId),
@@ -55,10 +61,26 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
       ...tweetAggregation(req),
     ]);
 
-    if (!likedTweet) throw new ApiError(500, "unable to like the tweet");
+    if (!likedTweet) throw new ApiError(500, "Unable to like the tweet");
+
+    const activity = new Activity({
+      activityType: "liked",
+      pathId: tweetId,
+      notifiedUserId: tweetOwnerId,
+      userId: req.user._id,
+    });
+
+    await activity.save();
+
+    pusher.trigger(
+      `userActivity-${tweetOwnerId}`,
+      "like",
+      getPusherActivityOptions("liked", req, tweetId)
+    );
+
     return res
       .status(200)
-      .json(new ApiResponse(201, tweet, "tweet liked successfully"));
+      .json(new ApiResponse(201, tweetData, "Tweet liked successfully"));
   }
 
   if (isAlreadyLiked) {

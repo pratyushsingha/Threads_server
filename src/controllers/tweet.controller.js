@@ -4,8 +4,13 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Tweet } from "../../models/tweet.model.js";
 import { User } from "../../models/user.model.js";
-import { getMongoosePaginationOptions } from "../utils/helper.js";
+import {
+  getMongoosePaginationOptions,
+  getPusherActivityOptions,
+} from "../utils/helper.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
+import { Activity } from "../../models/activity.model.js";
+import { pusher } from "../../app.js";
 
 export const tweetAggregation = (req) => {
   return [
@@ -439,6 +444,13 @@ const tweetDetails = asyncHandler(async (req, res) => {
 const replyOnTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   const { content, isAnonymous, tags } = req.body;
+
+  const tweetExists = await Tweet.findById(tweetId);
+  if (!tweetExists) {
+    throw new ApiError(404, "tweet not found");
+  }
+  const tweetOwnerId = tweetExists.owner.toString();
+
   if (!content) {
     throw new ApiError(400, "tweet can't be empty");
   }
@@ -477,6 +489,21 @@ const replyOnTweet = asyncHandler(async (req, res) => {
   if (!tweet) {
     throw new ApiError(500, "unable to create tweet");
   }
+
+  const activity = new Activity({
+    activityType: "replied",
+    pathId: tweetId,
+    notifiedUserId: tweetOwnerId,
+    userId: req.user._id,
+  });
+
+  await activity.save();
+
+  pusher.trigger(
+    `userActivity-${tweetOwnerId}`,
+    "reply",
+    getPusherActivityOptions("replied", req, tweetId)
+  );
 
   return res
     .status(200)

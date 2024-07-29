@@ -3,6 +3,7 @@ import cors from "cors";
 import requestIp from "request-ip";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
+import Pusher from "pusher";
 
 const app = express();
 
@@ -16,11 +17,11 @@ app.use(
 app.use((req, res, next) => {
   const originalSend = res.send;
   res.send = function (body) {
-      console.log("Status Code:", res.statusCode); // Log the status code
-      if (res.statusCode < 100 || res.statusCode > 599) {
-          res.statusCode = 500; // Set to 500 if invalid
-      }
-      return originalSend.call(this, body);
+    console.log("Status Code:", res.statusCode); // Log the status code
+    if (res.statusCode < 100 || res.statusCode > 599) {
+      res.statusCode = 500; // Set to 500 if invalid
+    }
+    return originalSend.call(this, body);
   };
   next();
 });
@@ -44,6 +45,14 @@ const limiter = rateLimit({
   },
 });
 
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID,
+  key: process.env.PUSHER_KEY,
+  secret: process.env.PUSHER_SECRET,
+  cluster: process.env.PUSHER_CLUSTER,
+  useTLS: true,
+});
+
 app.use(limiter);
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
@@ -57,6 +66,7 @@ import likeRouter from "./src/routes/like.route.js";
 import followRouter from "./src/routes/follow.route.js";
 import bookmarkRouter from "./src/routes/bookmark.route.js";
 import repostRouter from "./src/routes/repost.route.js";
+import activityRouter from "./src/routes/activity.route.js";
 
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/tweet", tweetRouter);
@@ -65,5 +75,6 @@ app.use("/api/v1/like", likeRouter);
 app.use("/api/v1/follow", followRouter);
 app.use("/api/v1/bookmarks", bookmarkRouter);
 app.use("/api/v1/reposts", repostRouter);
+app.use("/api/v1/activities", activityRouter);
 
-export { app };
+export { app, pusher };
