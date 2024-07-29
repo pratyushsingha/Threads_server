@@ -4,21 +4,45 @@ import { User } from "../../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { getMongoosePaginationOptions } from "../utils/helper.js";
+import { getMongoosePaginationOptions, getPusherActivityOptions } from "../utils/helper.js";
+import { Activity } from "../../models/activity.model.js";
+import { pusher } from "../../app.js";
+import { Tweet } from "../../models/tweet.model.js";
 
 const createRepost = asyncHandler(async (req, res) => {
-  const { tweetId, commentId } = req.params;
+  const { tweetId } = req.params;
+
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new ApiError(404, "tweet not found");
+  }
+
+  const tweetOwnerId = tweet.owner.toString();
 
   const repost = await Repost.create({
     tweetId,
     userId: req.user._id,
-    commentId,
     isTweet: tweetId ? true : false,
   });
 
   if (!repost) {
     throw new ApiError(500, "something went wrong while reposting the tweet");
   }
+
+  const activity = new Activity({
+    activityType: "reposted",
+    pathId: tweetId,
+    notifiedUserId: tweetOwnerId,
+    userId: req.user._id,
+  });
+
+  await activity.save();
+
+  pusher.trigger(
+    `userActivity-${tweetOwnerId}`,
+    "repost",
+    getPusherActivityOptions("reposted", req, tweetOwnerId)
+  );
 
   return res
     .status(200)

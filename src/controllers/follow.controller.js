@@ -5,7 +5,12 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { tweetAggregation } from "./tweet.controller.js";
-import { getMongoosePaginationOptions } from "../utils/helper.js";
+import {
+  getMongoosePaginationOptions,
+  getPusherActivityOptions,
+} from "../utils/helper.js";
+import { Activity } from "../../models/activity.model.js";
+import { pusher } from "../../app.js";
 
 const followUnfollowUser = asyncHandler(async (req, res) => {
   const { followerId } = req.params;
@@ -26,6 +31,22 @@ const followUnfollowUser = asyncHandler(async (req, res) => {
       followerId,
       followedBy: req.user?._id,
     });
+
+    const activity = new Activity({
+      activityType: "followed",
+      pathId: followerId,
+      notifiedUserId: followerId,
+      userId: req.user._id,
+    });
+
+    await activity.save();
+
+    pusher.trigger(
+      `userActivity-${followerId}`,
+      "follow",
+      getPusherActivityOptions("followed", req, followerId)
+    );
+
     if (!follow)
       throw new ApiError(500, "something went wrong while following the user");
     return res.status(200).json(

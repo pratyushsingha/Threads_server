@@ -19,3 +19,16 @@ export const getMongoosePaginationOptions = ({
     },
   };
 };
+
+export const getPusherActivityOptions = (activityType, req, pathId) => {
+  return {
+    activityType,
+    triggeredBy: {
+      _id: req.user._id,
+      username: req.user.username,
+      avatar: req.user.avatar,
+    },
+    pathId,
+    createdAt: Date.now(),
+  };
+};
