@@ -4,7 +4,10 @@ import { User } from "../../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { getMongoosePaginationOptions, getPusherActivityOptions } from "../utils/helper.js";
+import {
+  getMongoosePaginationOptions,
+  getPusherActivityOptions,
+} from "../utils/helper.js";
 import { Activity } from "../../models/activity.model.js";
 import { pusher } from "../../app.js";
 import { Tweet } from "../../models/tweet.model.js";
@@ -30,7 +33,7 @@ const createRepost = asyncHandler(async (req, res) => {
   }
 
   const activity = new Activity({
-    activityType: "reposted",
+    activityType: "repost",
     pathId: tweetId,
     notifiedUserId: tweetOwnerId,
     userId: req.user._id,
@@ -41,7 +44,7 @@ const createRepost = asyncHandler(async (req, res) => {
   pusher.trigger(
     `userActivity-${tweetOwnerId}`,
     "repost",
-    getPusherActivityOptions("reposted", req, tweetOwnerId)
+    getPusherActivityOptions("repost", req, tweetOwnerId)
   );
 
   return res
@@ -92,6 +95,14 @@ const getTweetReposts = asyncHandler(async (req, res) => {
         localField: "tweetId",
         foreignField: "tweetId",
         as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "reposts",
+        localField: "tweetId",
+        foreignField: "tweetId",
+        as: "reposts",
       },
     },
     {
@@ -176,6 +187,18 @@ const getTweetReposts = asyncHandler(async (req, res) => {
             else: false,
           },
         },
+        isReposted: {
+          $cond: {
+            if: {
+              $in: [
+                new mongoose.Types.ObjectId(req.user._id),
+                "$reposts.userId",
+              ],
+            },
+            then: true,
+            else: false,
+          },
+        },
       },
     },
     {
@@ -184,6 +207,7 @@ const getTweetReposts = asyncHandler(async (req, res) => {
         "tweetDetails.isLiked": "$isLiked",
         "tweetDetails.commentCount": "$commentCount",
         "tweetDetails.isBookmarked": "$isBookmarked",
+        "tweetDetails.isReposted": "$isReposted",
       },
     },
     {

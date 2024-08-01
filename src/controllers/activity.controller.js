@@ -57,11 +57,13 @@ const getAllActivities = asyncHandler(async (req, res) => {
     },
     {
       $project: {
+        _id: 1,
         owner: 1,
         triggeredBy: 1,
         activityType: 1,
         createdAt: 1,
         tweetId: 1,
+        pathId: 1,
       },
     },
     {

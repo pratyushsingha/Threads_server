@@ -278,7 +278,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
   if (usernameExists)
     throw new ApiError(422, "an user with this username already exists");
 
-  let tag = tags.split(" ");
+  let tag = tags?.split(" ");
   let avatarUrl;
 
   if (avatarLocalPath) {
@@ -289,7 +289,6 @@ const updateUserDetails = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Error while uploading avatar");
     }
     avatarUrl = avatar.url;
-    fs.unlinkSync(avatarLocalPath); // Delete the local file
   }
 
   const updatedProfileDetails = await User.findByIdAndUpdate(
@@ -302,7 +301,7 @@ const updateUserDetails = asyncHandler(async (req, res) => {
         tags: tag,
         portfolio,
         bio,
-        ...(avatarUrl && { avatar: avatarUrl }),
+        avatar: avatarUrl,
       },
     },
     {
@@ -475,26 +474,38 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const searchUser = asyncHandler(async (req, res) => {
-  const search = req.query.q;
-  if (!search) {
+  const { page, limit, query } = req.query;
+  if (!query) {
     throw new ApiError(400, "search query is required");
   }
 
-  const users = await User.aggregate([
+  const usersAggregate = User.aggregate([
     {
       $match: {
         $or: [
-          { username: { $regex: search, $options: "i" } },
-          { fullName: { $regex: search, $options: "i" } },
+          { username: { $regex: query, $options: "i" } },
+          { fullName: { $regex: query, $options: "i" } },
         ],
       },
     },
     ...userdetailsAggregation(req),
   ]);
 
-  if (!users) {
+  if (!usersAggregate) {
     throw new ApiError(404, "No user found");
   }
+
+  const users = await User.aggregatePaginate(
+    usersAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalUsers",
+        docs: "users",
+      },
+    })
+  );
   res
     .status(200)
     .json(new ApiResponse(201, users, "users fetched successfully"));
@@ -526,7 +537,7 @@ const suggestUser = asyncHandler(async (req, res) => {
       page,
       limit,
       customLabels: {
-        totalDocs: "suggestedUsers",
+        totalDocs: "totalUsers",
         docs: "users",
       },
     })
