@@ -253,7 +253,7 @@ const myTweets = asyncHandler(async (req, res) => {
       page,
       limit,
       customLabels: {
-        totalDocs: "myTweets",
+        totalDocs: "totalTweets",
         docs: "tweets",
       },
     })
@@ -295,7 +295,7 @@ const publicTweets = asyncHandler(async (req, res) => {
       page,
       limit,
       customLabels: {
-        publicTweets: "totalTweets",
+        totalDocs: "totalTweets",
         docs: "tweets",
       },
     })
@@ -491,7 +491,7 @@ const replyOnTweet = asyncHandler(async (req, res) => {
   }
 
   const activity = new Activity({
-    activityType: "replied",
+    activityType: "reply",
     pathId: tweetId,
     notifiedUserId: tweetOwnerId,
     userId: req.user._id,
@@ -502,7 +502,7 @@ const replyOnTweet = asyncHandler(async (req, res) => {
   pusher.trigger(
     `userActivity-${tweetOwnerId}`,
     "reply",
-    getPusherActivityOptions("replied", req, tweetId)
+    getPusherActivityOptions("reply", req, tweetId)
   );
 
   return res

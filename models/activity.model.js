@@ -13,14 +13,7 @@ const activitySchema = new Schema(
     },
     activityType: {
       type: String,
-      enum: [
-        "liked",
-        "disliked",
-        "replied",
-        "reposted",
-        "followed",
-        "unfollowed",
-      ],
+      enum: ["like", "reply", "repost", "follow"],
       required: true,
     },
     pathId: {

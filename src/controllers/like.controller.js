@@ -64,7 +64,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     if (!likedTweet) throw new ApiError(500, "Unable to like the tweet");
 
     const activity = new Activity({
-      activityType: "liked",
+      activityType: "like",
       pathId: tweetId,
       notifiedUserId: tweetOwnerId,
       userId: req.user._id,
@@ -75,7 +75,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     pusher.trigger(
       `userActivity-${tweetOwnerId}`,
       "like",
-      getPusherActivityOptions("liked", req, tweetId)
+      getPusherActivityOptions("like", req, tweetId)
     );
 
     return res
@@ -102,79 +102,20 @@ const likedTweets = asyncHandler(async (req, res) => {
         localField: "tweetId",
         foreignField: "_id",
         as: "likedTweets",
+        pipeline: [...tweetAggregation(req)],
       },
     },
     {
       $unwind: "$likedTweets",
     },
     {
-      $lookup: {
-        from: "users",
-        localField: "likedTweets.owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
+      $replaceRoot: {
+        newRoot: "$likedTweets",
       },
     },
     {
-      $unwind: "$ownerDetails",
-    },
-    {
-      $lookup: {
-        from: "bookmarks",
-        localField: "likedTweets._id",
-        foreignField: "tweetId",
-        as: "bookmarks",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "likedTweets._id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "likedTweets._id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $addFields: {
-        "likedTweets.likeCount": {
-          $size: "$likes",
-        },
-        "likedTweets.ownerDetails": "$ownerDetails",
-        "likedTweets.isLiked": true,
-        "likedTweets.commentCount": {
-          $size: "$comments",
-        },
-        "likedTweets.isBookmarked": {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$bookmarks.bookmarkedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        likedTweets: { $push: "$likedTweets" },
+      $sort: {
+        createdAt: -1,
       },
     },
   ]);

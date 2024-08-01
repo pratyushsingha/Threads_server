@@ -85,71 +85,20 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
         localField: "tweetId",
         foreignField: "_id",
         as: "bookmarkedTweets",
+        pipeline: [...tweetAggregation(req)],
       },
     },
     {
       $unwind: "$bookmarkedTweets",
     },
     {
-      $lookup: {
-        from: "users",
-        localField: "bookmarkedTweets.owner",
-        foreignField: "_id",
-        as: "ownerDetails",
-        pipeline: [
-          {
-            $project: {
-              username: 1,
-              avatar: 1,
-            },
-          },
-        ],
+      $replaceRoot: {
+        newRoot: "$bookmarkedTweets",
       },
     },
     {
-      $unwind: "$ownerDetails",
-    },
-    {
-      $lookup: {
-        from: "likes",
-        localField: "bookmarkedTweets._id",
-        foreignField: "tweetId",
-        as: "likes",
-      },
-    },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "bookmarkedTweets._id",
-        foreignField: "tweetId",
-        as: "comments",
-      },
-    },
-    {
-      $addFields: {
-        "bookmarkedTweets.likeCount": {
-          $size: "$likes",
-        },
-        "bookmarkedTweets.isBookmarked": true,
-        "bookmarkedTweets.ownerDetails": "$ownerDetails",
-        "bookmarkedTweets.commentCount": { $size: "$comments" },
-        "bookmarkedTweets.isLiked": {
-          $cond: {
-            if: {
-              $in: [req.user?._id, "$likes.likedBy"],
-            },
-            then: true,
-            else: false,
-          },
-        },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        bookmarkedTweet: {
-          $push: "$bookmarkedTweets",
-        },
+      $sort: {
+        createdAt: -1,
       },
     },
   ]);
@@ -164,32 +113,16 @@ const allBookMarkedTweets = asyncHandler(async (req, res) => {
       page,
       limit,
       customLabels: {
-        totalDocs: "bookmarkedTweets",
+        totalDocs: "totalTweets",
         docs: "tweets",
       },
     })
   );
-  const isEmpty = tweets.tweets[0].bookmarkedTweet.length;
-  if (isEmpty < 1) {
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          201,
-          (tweets.tweets[0].bookmarkedTweet = []),
-          "bookmarked tweets fetched successfully"
-        )
-      );
-  }
 
   return res
     .status(200)
     .json(
-      new ApiResponse(
-        201,
-        tweets.tweets[0],
-        "bookmarked tweets fetched successfully"
-      )
+      new ApiResponse(201, tweets, "bookmarked tweets fetched successfully")
     );
 });
 

@@ -33,7 +33,7 @@ const followUnfollowUser = asyncHandler(async (req, res) => {
     });
 
     const activity = new Activity({
-      activityType: "followed",
+      activityType: "follow",
       pathId: followerId,
       notifiedUserId: followerId,
       userId: req.user._id,
@@ -44,7 +44,7 @@ const followUnfollowUser = asyncHandler(async (req, res) => {
     pusher.trigger(
       `userActivity-${followerId}`,
       "follow",
-      getPusherActivityOptions("followed", req, followerId)
+      getPusherActivityOptions("follow", req, followerId)
     );
 
     if (!follow)
