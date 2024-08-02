@@ -38,7 +38,10 @@ const userdetailsAggregation = (req) => {
         isFollowing: {
           $cond: {
             if: {
-              $in: [req.user._id, "$followers.followedBy"],
+              $in: [
+                new mongoose.Types.ObjectId(req.user._id),
+                "$followers.followedBy",
+              ],
             },
             then: true,
             else: false,
@@ -271,26 +274,33 @@ const changePassword = asyncHandler(async (req, res) => {
 const updateUserDetails = asyncHandler(async (req, res) => {
   const { username, email, fullName, portfolio, tags, bio } = req.body;
 
-  const avatarLocalPath = req.file ? req.file.path : null;
-  console.log(avatarLocalPath);
+  const avatarLocalPath = req.file?.path;
+  console.log("Avatar local path:", avatarLocalPath);
 
   const usernameExists = await User.findOne({ username: { $eq: username } });
-  if (usernameExists)
-    throw new ApiError(422, "an user with this username already exists");
+  if (usernameExists) {
+    throw new ApiError(422, "A user with this username already exists");
+  }
 
-  let tag = tags?.split(" ");
+  let tagArray = tags?.split(" ");
   let avatarUrl;
 
   if (avatarLocalPath) {
-    const avatar = await cloudinaryUpload(avatarLocalPath);
-    console.log("Avatar upload result:", avatar); // Logging to debug
+    try {
+      const avatar = await cloudinaryUpload(avatarLocalPath);
+      console.log("Avatar upload result:", avatar);
 
-    if (!avatar.url) {
-      throw new ApiError(400, "Error while uploading avatar");
+      if (!avatar.url) {
+        throw new ApiError(400, "Error while uploading avatar");
+      } else {
+        avatarUrl = avatar.url;
+      }
+    } catch (error) {
+      throw new ApiError(500, "Internal server error while uploading avatar");
     }
-    avatarUrl = avatar.url;
   }
 
+  // Update user profile details
   const updatedProfileDetails = await User.findByIdAndUpdate(
     req.user._id,
     {
@@ -298,10 +308,10 @@ const updateUserDetails = asyncHandler(async (req, res) => {
         username,
         email,
         fullName,
-        tags: tag,
+        tags: tagArray,
         portfolio,
         bio,
-        avatar: avatarUrl,
+        ...(avatarUrl && { avatar: avatarUrl }),
       },
     },
     {
@@ -309,11 +319,15 @@ const updateUserDetails = asyncHandler(async (req, res) => {
     }
   ).select("-password -refreshToken");
 
+  if (!updatedProfileDetails) {
+    throw new ApiError(404, "User not found");
+  }
+
   return res
     .status(200)
     .json(
       new ApiResponse(
-        201,
+        200,
         updatedProfileDetails,
         "Profile updated successfully"
       )
