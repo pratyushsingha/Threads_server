@@ -109,6 +109,7 @@ export const tweetAggregation = (req) => {
       $project: {
         isAnonymous: 1,
         content: 1,
+        images: 1,
         createdAt: 1,
         updatedAt: 1,
         ownerDetails: 1,
@@ -242,6 +243,11 @@ const myTweets = asyncHandler(async (req, res) => {
       },
     },
     ...tweetAggregation(req),
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
   ]);
 
   if (!userTweetAggregate)
@@ -281,6 +287,11 @@ const publicTweets = asyncHandler(async (req, res) => {
       },
     },
     ...tweetAggregation(req),
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
   ]);
 
   if (!publicTweetsAggregate)
@@ -376,6 +387,11 @@ const feedTweets = asyncHandler(async (req, res) => {
       },
     },
     ...tweetAggregation(req),
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
   ]);
 
   const tweets = await Tweet.aggregatePaginate(
@@ -521,6 +537,11 @@ const getAllReplies = asyncHandler(async (req, res) => {
       },
     },
     ...tweetAggregation(req),
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
   ]);
 
   if (!replyAggregate) {
@@ -572,6 +593,11 @@ const getAllRepliedTweets = asyncHandler(async (req, res) => {
     {
       $unwind: {
         path: "$tweetDetails",
+      },
+    },
+    {
+      $sort: {
+        createdAt: -1,
       },
     },
   ]);
