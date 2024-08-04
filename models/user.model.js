@@ -5,6 +5,10 @@ import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const userSchema = new Schema(
   {
+    googleId: {
+      type: String,
+      sparse: true, // Optional: Keep sparse if still necessary
+    },
     username: {
       type: String,
       required: true,
@@ -32,9 +36,14 @@ const userSchema = new Schema(
     coverImage: {
       type: String,
     },
+    provider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
+    },
     password: {
       type: String,
-      required: true,
+      // required: () => this.provider === "local",
     },
     bio: {
       type: String,

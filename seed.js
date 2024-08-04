@@ -39,6 +39,23 @@ const seedTweets = async (num) => {
   console.log(`${num} tweets seeded`);
 };
 
+const seedReplies = async (num) => {
+  const tweets = [];
+  const users = await User.find();
+  const mainTweets = await Tweet.find({ isTweet: true });
+  for (let i = 0; i < num; i++) {
+    tweets.push({
+      content: faker.lorem.sentence(),
+      owner: users[Math.floor(Math.random() * users.length)]._id,
+      createdAt: faker.date.past(),
+      isTweet: false,
+      tweetId: mainTweets[Math.floor(Math.random() * mainTweets.length)]._id,
+    });
+  }
+  await Tweet.insertMany(tweets);
+  console.log(`${num} tweets seeded`);
+};
+
 const seedLikes = async (num) => {
   const likes = [];
   const tweets = await Tweet.find();
@@ -69,14 +86,15 @@ const seedFollows = async (num) => {
 };
 
 const seedDatabase = async () => {
-  await User.deleteMany({});
-  await Tweet.deleteMany({});
-  await Like.deleteMany({});
-  await Follow.deleteMany({});
-  await seedUsers(20); // Seed 20 users
-  await seedTweets(50); // Seed 50 tweets
-  await seedLikes(100); // Seed 100 likes
-  await seedFollows(30); // Seed 30 follows
+  // await User.deleteMany({});
+  // await Tweet.deleteMany({});
+  // await Like.deleteMany({});
+  // await Follow.deleteMany({});
+  await seedUsers(100);
+  await seedTweets(100);
+  await seedLikes(100);
+  await seedFollows(100);
+  await seedReplies(100);
   mongoose.connection.close();
 };
 
