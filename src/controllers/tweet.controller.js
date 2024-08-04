@@ -11,6 +11,7 @@ import {
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 import { Activity } from "../../models/activity.model.js";
 import { pusher } from "../../app.js";
+import { Follow } from "../../models/follow.model.js";
 
 export const tweetAggregation = (req) => {
   return [
@@ -623,6 +624,77 @@ const getAllRepliedTweets = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, tweets, "tweets fetched successfully"));
 });
 
+const followingUsersTweets = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+  console.log("ok");
+
+  const followingTweetsAggregate = Follow.aggregate([
+    {
+      $match: {
+        followedBy: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "tweets",
+        localField: "followerId",
+        foreignField: "owner",
+        as: "followingUserTweets",
+        pipeline: [
+          {
+            $match: {
+              isAnonymous: false,
+              tweetId: null,
+            },
+          },
+          ...tweetAggregation(req),
+          {
+            $sort: {
+              createdAt: -1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $unwind: {
+        path: "$followingUserTweets",
+      },
+    },
+    {
+      $replaceRoot: {
+        newRoot: "$followingUserTweets",
+      },
+    },
+  ]);
+
+  if (!followingTweetsAggregate) {
+    throw new ApiError(500, "something went wrong while fetching the tweets");
+  }
+
+  const follwoingTweets = await Follow.aggregatePaginate(
+    followingTweetsAggregate,
+    getMongoosePaginationOptions({
+      page,
+      limit,
+      customLabels: {
+        totalDocs: "totalFollowingTweets",
+        docs: "followingTweets",
+      },
+    })
+  );
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        follwoingTweets,
+        "following users tweets fetched successfully"
+      )
+    );
+});
+
 export {
   createTweet,
   updateTweet,
@@ -636,4 +708,5 @@ export {
   replyOnTweet,
   getAllReplies,
   getAllRepliedTweets,
+  followingUsersTweets,
 };

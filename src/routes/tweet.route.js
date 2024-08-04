@@ -5,6 +5,7 @@ import {
   createTweet,
   deleteTweet,
   feedTweets,
+  followingUsersTweets,
   getAllRepliedTweets,
   getAllReplies,
   getTweetById,
@@ -32,6 +33,7 @@ router.route("/").post(
 );
 
 router.route("/tweets/:username").get(verifyJWT, myTweets);
+router.route("/following").get(verifyJWT, followingUsersTweets);
 router.route("/:username").get(verifyJWT, publicTweets);
 router
   .route("/:tweetId")
