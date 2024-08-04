@@ -5,8 +5,9 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
-
-const generateAccessAndRefreshToken = async (userId) => {
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oidc";
+export const generateAccessAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
     const accessToken = user.generateAccessToken();
@@ -108,7 +109,7 @@ const registerUser = asyncHandler(async (req, res) => {
     password,
     avatar:
       avatar?.url ||
-      `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff`,
+      `https://ui-avatars.com/api/?name=${username}&background=random&color=fff`,
     coverImage: coverImage?.url || "https://shorturl.at/oKNUV",
     tags: tag,
     bio,
@@ -562,6 +563,34 @@ const suggestUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, users, "suggested users fetched successfully"));
 });
 
+const checkauthSts = asyncHandler(async (req, res) => {
+  const token =
+    req.cookies?.accessToken ||
+    req.header("Authorization")?.replace("Bearer ", "");
+
+  if (!token) {
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(
+          401,
+          { isAuthenticated: false, accessToken: null },
+          "User not logged in"
+        )
+      );
+  } else {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { isAuthenticated: true, accessToken: token },
+          "user is logged in"
+        )
+      );
+  }
+});
+
 export {
   registerUser,
   loginUser,
@@ -575,4 +604,5 @@ export {
   myProfileDetails,
   searchUser,
   suggestUser,
+  checkauthSts,
 };
