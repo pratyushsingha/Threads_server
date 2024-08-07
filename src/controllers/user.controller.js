@@ -30,7 +30,7 @@ const userdetailsAggregation = (req) => {
       $lookup: {
         from: "follows",
         localField: "_id",
-        foreignField: "followedBy",
+        foreignField: "followerId",
         as: "followers",
       },
     },
@@ -346,7 +346,7 @@ const userProfile = asyncHandler(async (req, res) => {
   const profileDetails = await User.aggregate([
     {
       $match: {
-        username: username?.toLowerCase(),
+        username: username,
       },
     },
     {
@@ -361,7 +361,7 @@ const userProfile = asyncHandler(async (req, res) => {
       $lookup: {
         from: "follows",
         localField: "_id",
-        foreignField: "followedBy",
+        foreignField: "followerId",
         as: "followers",
       },
     },
@@ -369,7 +369,7 @@ const userProfile = asyncHandler(async (req, res) => {
       $lookup: {
         from: "follows",
         localField: "_id",
-        foreignField: "followerId",
+        foreignField: "followedBy",
         as: "following",
       },
     },
@@ -383,7 +383,12 @@ const userProfile = asyncHandler(async (req, res) => {
         },
         isFollowing: {
           $cond: {
-            if: { $in: [req.user._id, "$following.followedBy"] },
+            if: {
+              $in: [
+                new mongoose.Types.ObjectId(req.user._id),
+                "$followers.followedBy",
+              ],
+            },
             then: true,
             else: false,
           },
@@ -404,6 +409,8 @@ const userProfile = asyncHandler(async (req, res) => {
         followersCount: 1,
         followingCount: 1,
         isFollowing: 1,
+        followers: 1,
+        following: 1,
       },
     },
   ]);

@@ -3,16 +3,10 @@ import { Activity } from "../../models/activity.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { getMongoosePaginationOptions } from "../utils/helper.js";
+import { ApiError } from "../utils/ApiError.js";
 
-const getAllActivities = asyncHandler(async (req, res) => {
-  const { page, limit } = req.query;
-
-  const activityAggregate = Activity.aggregate([
-    {
-      $match: {
-        notifiedUserId: new mongoose.Types.ObjectId(req.user._id),
-      },
-    },
+const activityAggregation = () => {
+  return [
     {
       $lookup: {
         from: "users",
@@ -71,12 +65,34 @@ const getAllActivities = asyncHandler(async (req, res) => {
         createdAt: -1,
       },
     },
+  ];
+};
+
+const getActivities = asyncHandler(async (req, res) => {
+  const { page, limit, filter } = req.query;
+  
+  const activityFilter = () => {
+    if (filter === "all") {
+      return {
+        $in: ["like", "retweet", "reply", "follow"],
+      };
+    } else {
+      return filter;
+    }
+  };
+
+  const activityAggregate = Activity.aggregate([
+    {
+      $match: {
+        notifiedUserId: new mongoose.Types.ObjectId(req.user._id),
+        activityType: activityFilter(),
+      },
+    },
+    ...activityAggregation(),
   ]);
 
   if (!activityAggregate) {
-    return res
-      .status(201)
-      .json(new ApiResponse(200, [], "no activities found"));
+    throw new ApiError(500, "something went wrong while getting activities");
   }
 
   const activities = await Activity.aggregatePaginate(
@@ -96,4 +112,4 @@ const getAllActivities = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, activities, "activities fetched successfully"));
 });
 
-export { getAllActivities };
+export { getActivities };
