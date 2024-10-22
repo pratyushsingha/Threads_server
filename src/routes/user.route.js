@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { upload } from "../middlewares/multer.middleware.js";
 import passport from "passport";
-import GoogleStrategy from "passport-google-oidc";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import {
   changePassword,
   checkauthSts,
@@ -29,8 +29,9 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.GOOGLE_SIGNIN_CALLBACK_URL,
       scope: ["profile", "email"],
+      state: true,
     },
-    async (issuer, profile, cb) => {
+    async (accessToken, refreshToken, profile, cb) => {
       console.log(profile);
       try {
         let user = await User.findOne({ googleId: profile.id });
@@ -47,6 +48,7 @@ passport.use(
         }
         return cb(null, user);
       } catch (err) {
+        console.log(err);
         return cb(err);
       }
     }
@@ -85,6 +87,7 @@ router.get(
   "/oauth2/redirect/google",
   passport.authenticate("google", {
     failureRedirect: `${process.env.FROTEND_URL}/login`,
+    failureMessage: true,
   }),
   async (req, res) => {
     console.log(req.user);
@@ -100,10 +103,10 @@ router.get(
       res
         .cookie("accessToken", accessToken, options)
         .cookie("refreshToken", refreshToken, options)
-        .redirect(`${process.env.FROTEND_URL}/`);
+        .redirect(`${process.env.FRONTEND_URL}`);
     } catch (error) {
       console.log("google callback signin error", error);
-      res.redirect(`${process.env.FROTEND_URL}/login`);
+      res.redirect(`${process.env.FRONTEND_URL}/login`);
     }
   }
 );
